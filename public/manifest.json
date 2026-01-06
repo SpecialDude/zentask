@@ -1,0 +1,24 @@
+{
+    "name": "ZenTask",
+    "short_name": "ZenTask",
+    "description": "Master your day with AI-powered hierarchical task management",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#020617",
+    "theme_color": "#6366f1",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": [
+        "productivity",
+        "utilities"
+    ],
+    "screenshots": [],
+    "prefer_related_applications": false
+}

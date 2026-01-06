@@ -11,9 +11,11 @@ import AIModal from './components/AIModal';
 import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
+import { useToast } from './components/Toast';
 import { supabase } from './supabase';
 
 const App: React.FC = () => {
+  const { showToast } = useToast();
   const [session, setSession] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -54,6 +56,7 @@ const App: React.FC = () => {
 
         if (error) {
           console.error('Error fetching tasks:', error);
+          showToast('Failed to load tasks', 'error');
         } else if (data) {
           setTasks(data);
         }
@@ -115,8 +118,11 @@ const App: React.FC = () => {
     const { error } = await supabase.from('tasks').insert([newTask]);
     if (error) {
       console.error('Error adding task:', error);
+      showToast('Failed to add task', 'error');
       return;
     }
+
+    showToast('Task created!', 'success');
 
     setTasks(prev => {
       const updated = [...prev, newTask];
@@ -157,8 +163,11 @@ const App: React.FC = () => {
     const { error } = await supabase.from('tasks').insert(nextTasks);
     if (error) {
       console.error('Error batch adding AI tasks:', error);
+      showToast('Failed to add AI tasks', 'error');
       return;
     }
+
+    showToast(`Added ${nextTasks.length} tasks from AI plan!`, 'success');
 
     setTasks(prev => [...prev, ...nextTasks]);
   };
