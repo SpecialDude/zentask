@@ -11,6 +11,7 @@ import AIModal from './components/AIModal';
 import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
+import InstallPrompt from './components/InstallPrompt';
 import { useToast } from './components/Toast';
 import { supabase } from './supabase';
 
@@ -408,6 +409,9 @@ const App: React.FC = () => {
           />
         )}
       </main>
+
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
     </div>
   );
 };
