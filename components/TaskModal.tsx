@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Task, TaskStatus, TaskPriority } from '../types';
+import { Task, TaskStatus, TaskPriority, RecurrencePattern } from '../types';
 
 interface TaskModalProps {
   onClose: () => void;
@@ -17,7 +17,10 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
     startTime: initialData?.startTime || '',
     priority: initialData?.priority || undefined as TaskPriority | undefined,
     completion: initialData?.completion || 0,
-    status: initialData?.status || TaskStatus.TODO
+    status: initialData?.status || TaskStatus.TODO,
+    isRecurring: initialData?.isRecurring || false,
+    recurrencePattern: initialData?.recurrencePattern || undefined as RecurrencePattern | undefined,
+    recurrenceEndDate: initialData?.recurrenceEndDate || ''
   });
 
   const priorityOptions: { value: TaskPriority; label: string; color: string; bgColor: string }[] = [
@@ -25,6 +28,13 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
     { value: TaskPriority.MEDIUM, label: 'Medium', color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-900/30' },
     { value: TaskPriority.HIGH, label: 'High', color: 'text-orange-600', bgColor: 'bg-orange-50 dark:bg-orange-900/30' },
     { value: TaskPriority.URGENT, label: 'Urgent', color: 'text-red-600', bgColor: 'bg-red-50 dark:bg-red-900/30' },
+  ];
+
+  const recurrenceOptions: { value: RecurrencePattern; label: string; icon: string }[] = [
+    { value: RecurrencePattern.DAILY, label: 'Daily', icon: '📅' },
+    { value: RecurrencePattern.WEEKLY, label: 'Weekly', icon: '📆' },
+    { value: RecurrencePattern.WEEKDAYS, label: 'Weekdays', icon: '💼' },
+    { value: RecurrencePattern.MONTHLY, label: 'Monthly', icon: '🗓️' },
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -44,7 +54,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-4 md:space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-4 md:space-y-5 max-h-[80vh] overflow-y-auto custom-scrollbar">
           <div className="space-y-1 md:space-y-2">
             <label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-400">Title</label>
             <input
@@ -61,7 +71,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
           <div className="space-y-1 md:space-y-2">
             <label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-400">Description</label>
             <textarea
-              rows={3}
+              rows={2}
               className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-2 md:py-3 text-xs md:text-sm transition-all outline-none resize-none"
               placeholder="Add more details..."
               value={formData.description}
@@ -101,8 +111,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
                   type="button"
                   onClick={() => setFormData({ ...formData, priority: formData.priority === option.value ? undefined : option.value })}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${formData.priority === option.value
-                      ? `${option.bgColor} ${option.color} ring-2 ring-offset-1 ring-current`
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    ? `${option.bgColor} ${option.color} ring-2 ring-offset-1 ring-current`
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
                 >
                   {option.label}
@@ -110,6 +120,53 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
               ))}
             </div>
           </div>
+
+          {/* Recurring Task Toggle - Only for new tasks, not subtasks */}
+          {!isSubtask && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-400">Repeat Task</label>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, isRecurring: !formData.isRecurring, recurrencePattern: !formData.isRecurring ? RecurrencePattern.DAILY : undefined })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.isRecurring ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-700'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform ${formData.isRecurring ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {formData.isRecurring && (
+                <div className="space-y-3 p-4 bg-primary/5 rounded-xl border border-primary/20">
+                  <div className="flex flex-wrap gap-2">
+                    {recurrenceOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, recurrencePattern: option.value })}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${formData.recurrencePattern === option.value
+                            ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                          }`}
+                      >
+                        <span>{option.icon}</span>
+                        <span>{option.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Until (optional)</label>
+                    <input
+                      type="date"
+                      className="w-full bg-white dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-2 text-xs transition-all outline-none"
+                      value={formData.recurrenceEndDate}
+                      onChange={e => setFormData({ ...formData, recurrenceEndDate: e.target.value })}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {initialData && (
             <div className="space-y-3 md:space-y-4 pt-2">

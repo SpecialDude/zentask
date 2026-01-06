@@ -13,7 +13,14 @@ export enum TaskPriority {
   URGENT = 'URGENT'
 }
 
-export type ViewType = 'LIST' | 'KANBAN';
+export enum RecurrencePattern {
+  DAILY = 'DAILY',
+  WEEKLY = 'WEEKLY',
+  MONTHLY = 'MONTHLY',
+  WEEKDAYS = 'WEEKDAYS'
+}
+
+export type ViewType = 'LIST' | 'KANBAN' | 'DASHBOARD';
 
 export interface Task {
   id: string;
@@ -31,7 +38,13 @@ export interface Task {
   carryOverReason?: string;
   carriedOverTo?: string; // Date string
   carriedOverFrom?: string; // Date string
+  // Recurring task fields
+  isRecurring?: boolean;
+  recurrencePattern?: RecurrencePattern;
+  recurrenceEndDate?: string; // ISO String (YYYY-MM-DD)
+  recurringParentId?: string; // Original recurring task ID
   createdAt: number;
   updatedAt: number;
 }
+
 

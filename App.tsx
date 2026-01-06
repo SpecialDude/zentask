@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Task, TaskStatus, ViewType } from './types';
+import { Task, TaskStatus, ViewType, RecurrencePattern } from './types';
 import { generateId, getTodayStr, getStatusFromProgress } from './utils';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -12,6 +12,7 @@ import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstallPrompt from './components/InstallPrompt';
+import Dashboard from './components/Dashboard';
 import { useToast } from './components/Toast';
 import { supabase } from './supabase';
 
@@ -116,17 +117,54 @@ const App: React.FC = () => {
       updatedAt: Date.now(),
     } as Task;
 
-    const { error } = await supabase.from('tasks').insert([newTask]);
+    const tasksToInsert: Task[] = [newTask];
+
+    if (newTask.isRecurring && newTask.recurrencePattern) {
+      const startDate = new Date(newTask.date);
+      const endDate = newTask.recurrenceEndDate ? new Date(newTask.recurrenceEndDate) : new Date(startDate);
+      if (!newTask.recurrenceEndDate) endDate.setMonth(endDate.getMonth() + 3); // Default 3 months
+
+      let currentDate = new Date(startDate);
+      currentDate.setDate(currentDate.getDate() + 1); // Start from next occurrence
+
+      while (currentDate <= endDate) {
+        let shouldAdd = false;
+        if (newTask.recurrencePattern === RecurrencePattern.DAILY) shouldAdd = true;
+        else if (newTask.recurrencePattern === RecurrencePattern.WEEKLY) {
+          if (currentDate.getDay() === startDate.getDay()) shouldAdd = true;
+        } else if (newTask.recurrencePattern === RecurrencePattern.WEEKDAYS) {
+          const day = currentDate.getDay();
+          if (day !== 0 && day !== 6) shouldAdd = true;
+        } else if (newTask.recurrencePattern === RecurrencePattern.MONTHLY) {
+          if (currentDate.getDate() === startDate.getDate()) shouldAdd = true;
+        }
+
+        if (shouldAdd) {
+          tasksToInsert.push({
+            ...newTask,
+            id: generateId(),
+            date: currentDate.toISOString().split('T')[0],
+            recurringParentId: newTask.id,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          });
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+        if (tasksToInsert.length > 365) break; // Safety break
+      }
+    }
+
+    const { error } = await supabase.from('tasks').insert(tasksToInsert);
     if (error) {
-      console.error('Error adding task:', error);
+      console.error('Error adding task(s):', error);
       showToast('Failed to add task', 'error');
       return;
     }
 
-    showToast('Task created!', 'success');
+    showToast(tasksToInsert.length > 1 ? `Added ${tasksToInsert.length} recurring tasks!` : 'Task created!', 'success');
 
     setTasks(prev => {
-      const updated = [...prev, newTask];
+      const updated = [...prev, ...tasksToInsert];
       return syncParents(newTask.id, updated);
     });
     setIsModalOpen(false);
@@ -358,7 +396,13 @@ const App: React.FC = () => {
         />
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
-          {viewType === 'LIST' ? (
+          {viewType === 'DASHBOARD' ? (
+            <Dashboard
+              tasks={tasks}
+              onTaskClick={(t) => handleOpenModal(t)}
+              onGoToDate={(d) => { setSelectedDate(d); setViewType('LIST'); }}
+            />
+          ) : viewType === 'LIST' ? (
             <ListView
               tasks={filteredTasks}
               allTasks={tasks}

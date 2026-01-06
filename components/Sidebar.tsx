@@ -14,12 +14,11 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ viewType, setViewType, isDarkMode, setIsDarkMode, isOpen, onClose }) => {
   const NavItem = ({ id, label, icon }: { id: ViewType, label: string, icon: React.ReactNode }) => (
     <button
-      onClick={() => setViewType(id)}
-      className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-        viewType === id 
-          ? 'bg-primary text-white shadow-lg shadow-primary/20' 
+      onClick={() => { setViewType(id); onClose(); }}
+      className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${viewType === id
+          ? 'bg-primary text-white shadow-lg shadow-primary/20'
           : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'
-      }`}
+        }`}
     >
       {icon}
       <span className="font-medium">{label}</span>
@@ -29,7 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({ viewType, setViewType, isDarkMode, se
   return (
     <>
       {/* Mobile Overlay */}
-      <div 
+      <div
         className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-opacity md:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       ></div>
@@ -52,20 +51,25 @@ const Sidebar: React.FC<SidebarProps> = ({ viewType, setViewType, isDarkMode, se
         </div>
 
         <nav className="flex-1 space-y-2">
-          <NavItem 
-            id="LIST" 
-            label="Daily List" 
-            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg>} 
+          <NavItem
+            id="DASHBOARD"
+            label="Dashboard"
+            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>}
           />
-          <NavItem 
-            id="KANBAN" 
-            label="Kanban Board" 
-            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>} 
+          <NavItem
+            id="LIST"
+            label="Daily List"
+            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg>}
+          />
+          <NavItem
+            id="KANBAN"
+            label="Kanban Board"
+            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>}
           />
         </nav>
 
         <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-800">
-          <button 
+          <button
             onClick={() => setIsDarkMode(!isDarkMode)}
             className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
