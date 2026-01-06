@@ -3,18 +3,29 @@ import { Task, TaskStatus, TaskPriority } from '../types';
 
 interface DashboardProps {
     tasks: Task[];
+    selectedDate: string;
     onTaskClick: (task: Task) => void;
     onGoToDate: (date: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ tasks, onTaskClick, onGoToDate }) => {
+type TimelineScale = 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
+
+const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick, onGoToDate }) => {
+    const [timelineScale, setTimelineScale] = React.useState<TimelineScale>('DAY');
+
     const stats = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
 
-        // 1. Statistics
+        // 1. Current Session Statistics (Based on selectedDate)
+        const selectedDateTasks = tasks.filter(t => t.date === selectedDate && !t.parentId);
+        const selectedCompleted = selectedDateTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
+        const selectedCompletionRate = selectedDateTasks.length > 0 ? Math.round((selectedCompleted / selectedDateTasks.length) * 100) : 0;
+
+        // Overall Global Stats (for context)
         const allTopLevel = tasks.filter(t => !t.parentId);
-        const completed = allTopLevel.filter(t => t.status === TaskStatus.COMPLETED).length;
-        const completionRate = allTopLevel.length > 0 ? Math.round((completed / allTopLevel.length) * 100) : 0;
+        const globalCompleted = allTopLevel.filter(t => t.status === TaskStatus.COMPLETED).length;
+        // Global completion rate is still useful for general motivation
+        const globalCompletionRate = allTopLevel.length > 0 ? Math.round((globalCompleted / allTopLevel.length) * 100) : 0;
 
         // Streak
         const sortedDates = [...new Set(tasks.filter(t => t.status === TaskStatus.COMPLETED).map(t => t.date))].sort().reverse();
@@ -51,15 +62,182 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, onTaskClick, onGoToDate })
         }).sort((a, b) => b.date.localeCompare(a.date));
 
         return {
-            completionRate,
-            completed,
-            total: allTopLevel.length,
+            completionRate: selectedCompletionRate,
+            completed: selectedCompleted,
+            total: selectedDateTasks.length,
+            globalCompletionRate,
             streak,
             pending,
             upcoming,
             lost
         };
-    }, [tasks]);
+    }, [tasks, selectedDate]);
+
+    // Timeline Data Aggregation
+    const timelineData = useMemo(() => {
+        const data: { label: string, value: number }[] = [];
+        const now = new Date();
+
+        if (timelineScale === 'DAY') {
+            for (let i = 13; i >= 0; i--) {
+                const d = new Date(now);
+                d.setDate(d.getDate() - i);
+                const ds = d.toISOString().split('T')[0];
+                const dayTasks = tasks.filter(t => t.date === ds && !t.parentId);
+                const done = dayTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
+                const rate = dayTasks.length > 0 ? (done / dayTasks.length) * 100 : 0;
+                data.push({ label: d.toLocaleDateString('en-US', { weekday: 'short' }), value: rate });
+            }
+        } else if (timelineScale === 'WEEK') {
+            for (let i = 7; i >= 0; i--) {
+                const d = new Date(now);
+                d.setDate(d.getDate() - i * 7);
+                // Get start and end of week
+                const start = new Date(d); start.setDate(d.getDate() - d.getDay());
+                const end = new Date(start); end.setDate(start.getDate() + 6);
+                const ss = start.toISOString().split('T')[0];
+                const es = end.toISOString().split('T')[0];
+
+                const weekTasks = tasks.filter(t => t.date >= ss && t.date <= es && !t.parentId);
+                const done = weekTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
+                const rate = weekTasks.length > 0 ? (done / weekTasks.length) * 100 : 0;
+                data.push({ label: `${start.getMonth() + 1}/${start.getDate()}`, value: rate });
+            }
+        } else if (timelineScale === 'MONTH') {
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const month = d.getMonth();
+                const year = d.getFullYear();
+                const monthTasks = tasks.filter(t => {
+                    const td = new Date(t.date);
+                    return td.getMonth() === month && td.getFullYear() === year && !t.parentId;
+                });
+                const done = monthTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
+                const rate = monthTasks.length > 0 ? (done / monthTasks.length) * 100 : 0;
+                data.push({ label: d.toLocaleDateString('en-US', { month: 'short' }), value: rate });
+            }
+        } else if (timelineScale === 'YEAR') {
+            for (let i = 4; i >= 0; i--) {
+                const year = now.getFullYear() - i;
+                const yearTasks = tasks.filter(t => new Date(t.date).getFullYear() === year && !t.parentId);
+                const done = yearTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
+                const rate = yearTasks.length > 0 ? (done / yearTasks.length) * 100 : 0;
+                data.push({ label: `${year}`, value: rate });
+            }
+        }
+        return data;
+    }, [tasks, timelineScale]);
+
+    const TimelineGraph = () => {
+        if (timelineData.length === 0) return null;
+
+        const width = 800;
+        const height = 150;
+        const padding = 20;
+        const chartWidth = width - padding * 2;
+        const chartHeight = height - padding * 2;
+
+        const points = timelineData.map((d, i) => {
+            const x = padding + (i / (timelineData.length - 1)) * chartWidth;
+            const y = height - (padding + (d.value / 100) * chartHeight);
+            return { x, y };
+        });
+
+        const pathData = points.reduce((acc, p, i) => {
+            if (i === 0) return `M ${p.x} ${p.y}`;
+            const prev = points[i - 1];
+            const cp1x = prev.x + (p.x - prev.x) / 2;
+            const cp2x = prev.x + (p.x - prev.x) / 2;
+            return `${acc} C ${cp1x} ${prev.y}, ${cp2x} ${p.y}, ${p.x} ${p.y}`;
+        }, "");
+
+        const areaData = `${pathData} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
+
+        return (
+            <div className="w-full bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden relative group">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-800 dark:text-slate-100">Productivity Timeline</h3>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Activity over time</p>
+                    </div>
+                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
+                        {(['DAY', 'WEEK', 'MONTH', 'YEAR'] as const).map(scale => (
+                            <button
+                                key={scale}
+                                onClick={() => setTimelineScale(scale)}
+                                className={`px-4 py-1.5 rounded-lg text-[10px] font-black tracking-tighter transition-all ${timelineScale === scale
+                                    ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                                    }`}
+                            >
+                                {scale}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="relative h-[150px] w-full">
+                    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
+                        <defs>
+                            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
+                                <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+                            </linearGradient>
+                        </defs>
+
+                        {[0, 25, 50, 75, 100].map(v => {
+                            const y = height - (padding + (v / 100) * chartHeight);
+                            return (
+                                <line
+                                    key={v}
+                                    x1={padding} y1={y} x2={width - padding} y2={y}
+                                    stroke="currentColor"
+                                    className="text-slate-100 dark:text-slate-800/50"
+                                    strokeWidth="1"
+                                />
+                            );
+                        })}
+
+                        <path d={areaData} fill="url(#chartGradient)" className="transition-all duration-700 ease-in-out" />
+                        <path
+                            d={pathData}
+                            fill="none"
+                            stroke="#6366f1"
+                            strokeWidth="4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="transition-all duration-700 ease-in-out drop-shadow-lg"
+                        />
+
+                        {points.map((p, i) => (
+                            <g key={i} className="group/point cursor-pointer">
+                                <circle
+                                    cx={p.x} cy={p.y} r="5"
+                                    fill="white"
+                                    stroke="#6366f1"
+                                    strokeWidth="2"
+                                    className="dark:fill-slate-900 transition-all hover:r-7"
+                                />
+                                <text
+                                    x={p.x} y={height - 2}
+                                    textAnchor="middle"
+                                    className="text-[10px] fill-slate-400 font-bold"
+                                >
+                                    {timelineData[i].label}
+                                </text>
+                                <g className="opacity-0 group-hover/point:opacity-100 transition-opacity pointer-events-none">
+                                    <rect x={p.x - 20} y={p.y - 30} width="40" height="20" rx="4" className="fill-slate-900 dark:fill-white" />
+                                    <text x={p.x} y={p.y - 17} textAnchor="middle" className="text-[10px] font-black fill-white dark:fill-slate-900">
+                                        {Math.round(timelineData[i].value)}%
+                                    </text>
+                                </g>
+                            </g>
+                        ))}
+                    </svg>
+                </div>
+            </div>
+        );
+    };
 
     const TaskCard = ({ task, showDate = false }: { task: Task, showDate?: boolean }) => (
         <div
@@ -106,15 +284,15 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, onTaskClick, onGoToDate })
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 bg-gradient-to-br from-primary to-indigo-700 rounded-[2rem] p-8 text-white shadow-xl shadow-primary/20 flex flex-col justify-between min-h-[220px]">
                     <div>
-                        <h2 className="text-3xl font-extrabold mb-2">Welcome Back!</h2>
+                        <h2 className="text-3xl font-extrabold mb-2">My Productivity</h2>
                         <p className="text-indigo-100 text-sm max-w-md">
-                            You've completed {stats.completed} tasks so far. Keep the momentum going to maintain your {stats.streak}-day streak!
+                            On {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}, you've tackled {stats.total} tasks. Keep your {stats.streak}-day streak alive!
                         </p>
                     </div>
                     <div className="flex items-center gap-6 mt-6">
                         <div className="flex flex-col">
                             <span className="text-3xl font-black">{stats.completionRate}%</span>
-                            <span className="text-xs font-medium text-indigo-200 uppercase tracking-widest">Completion</span>
+                            <span className="text-xs font-medium text-indigo-200 uppercase tracking-widest">Day Progress</span>
                         </div>
                         <div className="h-12 w-px bg-white/20" />
                         <div className="flex flex-col">
@@ -124,7 +302,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, onTaskClick, onGoToDate })
                         <div className="h-12 w-px bg-white/20" />
                         <div className="flex flex-col">
                             <span className="text-3xl font-black">{stats.total}</span>
-                            <span className="text-xs font-medium text-indigo-200 uppercase tracking-widest">Total Tasks</span>
+                            <span className="text-xs font-medium text-indigo-200 uppercase tracking-widest">Tasks Today</span>
                         </div>
                     </div>
                 </div>
@@ -157,6 +335,9 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, onTaskClick, onGoToDate })
                 </div>
             </div>
 
+            {/* Timeline Visualization */}
+            <TimelineGraph />
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Column: Pending & Upcoming */}
                 <div className="lg:col-span-2 space-y-8">
@@ -165,7 +346,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, onTaskClick, onGoToDate })
                         <div className="flex items-center justify-between mb-4 px-2">
                             <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                                 <span className="w-2 h-6 bg-primary rounded-full" />
-                                Focus Today
+                                Tasks for {new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                             </h3>
                             <span className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">
                                 {stats.pending.length} Remaining

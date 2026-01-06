@@ -54,10 +54,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
       setDropAction({ task, status });
       setPromptData({ date: '', reason: '' });
     } else {
-      onUpdateTask(task.id, { 
-        status: status as TaskStatus, 
-        completion: status === TaskStatus.COMPLETED ? 100 : task.completion 
-      }, true);
+      onUpdateTask(task.id, { status: status as TaskStatus }, true);
     }
     setActiveTask(null);
   };
@@ -69,58 +66,101 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
     if (status === 'CARRIED_OVER') {
       onCarryOver(task.id, promptData.date, promptData.reason);
     } else {
-      onUpdateTask(task.id, { 
-        status: TaskStatus.CANCELLED, 
-        cancelReason: promptData.reason 
+      onUpdateTask(task.id, {
+        status: TaskStatus.CANCELLED,
+        cancelReason: promptData.reason
       }, true);
     }
     setDropAction(null);
   };
 
-  const renderTaskCard = (task: Task, isSubtask = false) => (
-    <div 
-      key={task.id} 
-      draggable={!task.carriedOverTo}
-      onDragStart={(e) => onDragStart(e, task)}
-      className={`bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 group hover:shadow-md transition-all cursor-pointer select-none active:scale-95 ${isSubtask ? 'ml-4 border-l-2 border-slate-200 dark:border-slate-600' : ''} ${activeTask?.id === task.id ? 'opacity-40 grayscale' : ''}`}
-      onClick={() => onEditTask(task)}
+  const renderTaskCard = (task: Task, isInStatus: boolean, level: number) => (
+    <div
+      key={task.id}
+      draggable={isInStatus && !task.carriedOverTo}
+      onDragStart={(e) => isInStatus && onDragStart(e, task)}
+      className={`relative p-3 rounded-xl shadow-sm border transition-all group ${!isInStatus
+        ? 'bg-slate-50/50 dark:bg-slate-900/30 border-dashed border-slate-200 dark:border-slate-800 opacity-60'
+        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:shadow-md cursor-pointer active:scale-95'
+        } ${activeTask?.id === task.id ? 'opacity-40 grayscale' : ''} ${level > 0 ? 'ml-4' : ''}`}
+      onClick={() => isInStatus && onEditTask(task)}
     >
-      <div className="flex justify-between items-start mb-1">
-        <h4 className={`text-sm font-semibold leading-tight pr-4 ${task.status === TaskStatus.COMPLETED ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-100'}`}>
+      {!isInStatus && (
+        <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-2 h-px bg-slate-300 dark:bg-slate-700" />
+      )}
+      <div className="flex justify-between items-start mb-1 gap-2">
+        <h4 className={`text-sm font-semibold leading-tight break-words ${task.status === TaskStatus.COMPLETED && isInStatus ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-100'
+          } ${!isInStatus ? 'text-[11px] text-slate-500 italic' : ''}`}>
           {task.title}
         </h4>
-        {task.carriedOverTo && (
-           <span className="text-[10px] text-blue-500 font-bold uppercase italic whitespace-nowrap">→ {task.carriedOverTo}</span>
+        {isInStatus && task.carriedOverTo && (
+          <span className="text-[10px] text-blue-500 font-bold uppercase italic whitespace-nowrap">→ {task.carriedOverTo}</span>
         )}
       </div>
-      
-      <div className="flex items-center justify-between mt-2">
-        <div className="flex items-center space-x-2">
-          {task.startTime && !task.carriedOverTo && (
-            <span className="text-[10px] bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500">{task.startTime}</span>
-          )}
-          <div className="w-12 h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-            <div className={`h-full ${task.status === TaskStatus.COMPLETED ? 'bg-green-500' : 'bg-primary'}`} style={{ width: `${task.completion}%` }}></div>
+
+      {isInStatus && (
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center space-x-2">
+            {task.startTime && !task.carriedOverTo && (
+              <span className="text-[10px] bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-500">{task.startTime}</span>
+            )}
+            <div className="w-12 h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div className={`h-full ${task.status === TaskStatus.COMPLETED ? 'bg-green-500' : 'bg-primary'}`} style={{ width: `${task.completion}%` }}></div>
+            </div>
+            <span className="text-[9px] font-bold text-slate-400">{task.completion}%</span>
           </div>
-          <span className="text-[9px] font-bold text-slate-400">{task.completion}%</span>
         </div>
-      </div>
+      )}
+    </div>
+  );
+
+  const renderTaskTree = (node: any, level: number) => (
+    <div key={node.task.id} className="space-y-2">
+      {renderTaskCard(node.task, node.isInStatus, level)}
+      {node.children.length > 0 && (
+        <div className="space-y-2 border-l border-slate-200 dark:border-slate-700 ml-3 pl-3 py-1">
+          {node.children.map((child: any) => renderTaskTree(child, level + 1))}
+        </div>
+      )}
     </div>
   );
 
   return (
     <div className="flex space-x-6 h-full min-h-[calc(100vh-12rem)] pb-4 overflow-x-auto custom-scrollbar relative">
       {columns.map(col => {
-        const colTasks = tasks.filter(t => {
+        const explicitColTasks = tasks.filter(t => {
           if (col.isVirtual) return !!t.carriedOverTo;
           return t.status === col.id && !t.carriedOverTo;
         });
-        
-        const visibleTopLevelTasks = colTasks.filter(t => !t.parentId || !tasks.find(p => p.id === t.parentId));
+
+        // Collect all tasks needed for this column forest (matching tasks + their parents)
+        const visibleIds = new Set<string>();
+        explicitColTasks.forEach(t => {
+          let curr: Task | undefined = t;
+          while (curr) {
+            visibleIds.add(curr.id);
+            curr = curr.parentId ? tasks.find(p => p.id === curr?.parentId) : undefined;
+          }
+        });
+
+        const visibleTasks = tasks.filter(t => visibleIds.has(t.id));
+
+        const buildForest = (parentId: string | null): any[] => {
+          return visibleTasks
+            .filter(t => t.parentId === parentId)
+            .sort((a, b) => (a.startTime || '99:99').localeCompare(b.startTime || '99:99'))
+            .map(t => ({
+              task: t,
+              isInStatus: explicitColTasks.some(ect => ect.id === t.id),
+              children: buildForest(t.id)
+            }));
+        };
+
+        const forest = buildForest(null);
 
         return (
-          <div 
-            key={col.id} 
+          <div
+            key={col.id}
             className="flex-shrink-0 w-80 flex flex-col"
             onDragOver={onDragOver}
             onDrop={(e) => onDrop(e, col.id)}
@@ -129,30 +169,17 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
               <div className="flex items-center space-x-2">
                 <div className={`w-2.5 h-2.5 rounded-full ${col.color}`}></div>
                 <h3 className="font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider text-xs">{col.title}</h3>
-                <span className="bg-slate-200 dark:bg-slate-800 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-full">{colTasks.length}</span>
+                <span className="bg-slate-200 dark:bg-slate-800 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-full">{explicitColTasks.length}</span>
               </div>
             </div>
 
-            <div className="flex-1 bg-slate-100/50 dark:bg-slate-900/30 rounded-2xl p-2 space-y-3 overflow-y-auto custom-scrollbar border-2 border-dashed border-transparent hover:border-slate-300 dark:hover:border-slate-700 transition-all">
-              {visibleTopLevelTasks.length === 0 && (
+            <div className="flex-1 bg-slate-100/50 dark:bg-slate-900/30 rounded-[2rem] p-3 space-y-4 overflow-y-auto custom-scrollbar border-2 border-dashed border-transparent hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+              {forest.length === 0 && (
                 <div className="h-24 flex items-center justify-center text-slate-400 text-xs text-center px-4">
                   {col.isVirtual ? 'Drop here to carry out' : 'Drag here'}
                 </div>
               )}
-              {visibleTopLevelTasks.map(parentTask => {
-                const children = tasks.filter(child => child.parentId === parentTask.id);
-                return (
-                  <div key={parentTask.id} className="space-y-2">
-                    {renderTaskCard(parentTask)}
-                    {children.length > 0 && (
-                      <div className="space-y-1 mt-1 border-l border-slate-200 dark:border-slate-700 ml-2 pl-2">
-                        <p className="text-[9px] uppercase font-bold text-slate-400 px-2 tracking-widest">Subtasks</p>
-                        {children.map(child => renderTaskCard(child, true))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {forest.map(tree => renderTaskTree(tree, 0))}
             </div>
           </div>
         );
@@ -167,57 +194,57 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
               {dropAction.status === 'CARRIED_OVER' ? 'Carry Over Task' : 'Cancel Task'}
             </h3>
             <p className="text-sm text-slate-500">"{dropAction.task.title}"</p>
-            
+
             <div className="space-y-4">
               {dropAction.status === 'CARRIED_OVER' && (
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Target Date</label>
                   <div className="flex flex-wrap gap-2 mb-2">
-                    <button 
+                    <button
                       onClick={() => {
                         const t = new Date(); t.setDate(t.getDate() + 1);
-                        setPromptData({...promptData, date: t.toISOString().split('T')[0]});
+                        setPromptData({ ...promptData, date: t.toISOString().split('T')[0] });
                       }}
                       className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-primary hover:text-white transition-all"
                     >Tomorrow</button>
-                    <button 
+                    <button
                       onClick={() => {
                         const t = new Date(); t.setDate(t.getDate() + 2);
-                        setPromptData({...promptData, date: t.toISOString().split('T')[0]});
+                        setPromptData({ ...promptData, date: t.toISOString().split('T')[0] });
                       }}
                       className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg hover:bg-primary hover:text-white transition-all"
                     >Next Day</button>
                   </div>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-2 text-sm transition-all outline-none"
                     value={promptData.date}
-                    onChange={e => setPromptData({...promptData, date: e.target.value})}
+                    onChange={e => setPromptData({ ...promptData, date: e.target.value })}
                   />
                 </div>
               )}
-              
+
               <div className="space-y-2">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                   {dropAction.status === 'CARRIED_OVER' ? 'Reason / Note (Optional)' : 'Reason for Cancellation'}
                 </label>
-                <textarea 
+                <textarea
                   rows={2}
                   autoFocus
                   className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-3 text-sm transition-all outline-none resize-none"
                   placeholder="Why are you moving this?"
                   value={promptData.reason}
-                  onChange={e => setPromptData({...promptData, reason: e.target.value})}
+                  onChange={e => setPromptData({ ...promptData, reason: e.target.value })}
                 />
               </div>
             </div>
 
             <div className="flex gap-3 pt-2">
-              <button 
+              <button
                 onClick={() => setDropAction(null)}
                 className="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
               >Cancel</button>
-              <button 
+              <button
                 onClick={handlePromptSubmit}
                 className="flex-1 py-3 text-sm font-bold bg-primary text-white rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
               >Confirm</button>

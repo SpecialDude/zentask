@@ -255,7 +255,24 @@ const App: React.FC = () => {
 
   const updateTask = async (id: string, updates: Partial<Task>, moveSubtasks = false) => {
     const originalTask = tasks.find(t => t.id === id);
-    const { error } = await supabase.from('tasks').update({ ...updates, updatedAt: Date.now() }).eq('id', id);
+    if (!originalTask) return;
+
+    // Consistency check: Resolve status and completion
+    const finalUpdates = { ...updates };
+
+    if (updates.status) {
+      if (updates.status === TaskStatus.COMPLETED) finalUpdates.completion = 100;
+      else if (updates.status === TaskStatus.TODO) finalUpdates.completion = 0;
+      else if (updates.status === TaskStatus.IN_PROGRESS && (originalTask.completion === 0 || originalTask.completion === 100)) {
+        finalUpdates.completion = 50;
+      }
+    } else if (updates.completion !== undefined) {
+      if (updates.completion >= 100) finalUpdates.status = TaskStatus.COMPLETED;
+      else if (updates.completion === 0) finalUpdates.status = TaskStatus.TODO;
+      else finalUpdates.status = TaskStatus.IN_PROGRESS;
+    }
+
+    const { error } = await supabase.from('tasks').update({ ...finalUpdates, updatedAt: Date.now() }).eq('id', id);
     if (error) {
       console.error('Error updating task:', error);
       return;
@@ -317,7 +334,7 @@ const App: React.FC = () => {
 
     setTasks(prev => {
       let currentPool = updatedTreeInLocal.length > 0 ? updatedTreeInLocal : prev;
-      let updated = currentPool.map(t => t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t);
+      let updated = currentPool.map(t => t.id === id ? { ...t, ...finalUpdates, updatedAt: Date.now() } : t);
       if (addedRecurringInstances.length > 0) {
         updated = [...updated, ...addedRecurringInstances];
       }
@@ -326,14 +343,14 @@ const App: React.FC = () => {
         const tasksToMove = prev.filter(t => t.parentId === id && t.date === prev.find(p => p.id === id)?.date);
         tasksToMove.forEach(t => {
           supabase.from('tasks').update({
-            status: updates.status || t.status,
-            completion: updates.completion !== undefined ? updates.completion : t.completion,
+            status: finalUpdates.status || t.status,
+            completion: finalUpdates.completion !== undefined ? finalUpdates.completion : t.completion,
             updatedAt: Date.now()
           }).eq('id', t.id).then();
         });
 
         updated = updated.map(t => t.parentId === id && t.date === prev.find(p => p.id === id)?.date
-          ? { ...t, status: updates.status || t.status, completion: updates.completion !== undefined ? updates.completion : t.completion, updatedAt: Date.now() }
+          ? { ...t, status: finalUpdates.status || t.status, completion: finalUpdates.completion !== undefined ? finalUpdates.completion : t.completion, updatedAt: Date.now() }
           : t);
       }
 
@@ -527,6 +544,7 @@ const App: React.FC = () => {
           {viewType === 'DASHBOARD' ? (
             <Dashboard
               tasks={tasks}
+              selectedDate={selectedDate}
               onTaskClick={(t) => { setSelectedDate(t.date); setViewType('LIST'); }}
               onGoToDate={(d) => { setSelectedDate(d); setViewType('LIST'); }}
             />
