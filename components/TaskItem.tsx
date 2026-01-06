@@ -90,8 +90,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
             disabled={!!task.carriedOverTo}
             onClick={handleStatusToggle}
             className={`mt-1 h-5 w-5 md:h-6 md:w-6 rounded-lg border-2 flex items-center justify-center transition-all ${task.status === TaskStatus.COMPLETED
-                ? 'bg-green-500 border-green-500 text-white'
-                : 'border-slate-300 dark:border-slate-600'
+              ? 'bg-green-500 border-green-500 text-white'
+              : 'border-slate-300 dark:border-slate-600'
               } ${task.carriedOverTo ? 'cursor-not-allowed opacity-50' : ''}`}
           >
             {task.status === TaskStatus.COMPLETED && (
@@ -125,6 +125,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 {getPriorityConfig(task.priority) && (
                   <span className={`px-1.5 py-0.5 rounded font-semibold ${getPriorityConfig(task.priority)!.bgColor} ${getPriorityConfig(task.priority)!.textColor}`}>
                     {getPriorityConfig(task.priority)!.label}
+                  </span>
+                )}
+                {task.isRecurring && (
+                  <span className="flex items-center bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded gap-1" title={task.recurrencePattern}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                    </svg>
+                    {task.recurrencePattern?.toLowerCase()}
                   </span>
                 )}
                 <span className={`px-1.5 py-0.5 rounded text-white ${getStatusColor(task.status)} whitespace-nowrap`}>

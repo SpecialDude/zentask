@@ -32,6 +32,7 @@ const App: React.FC = () => {
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [parentForSubtask, setParentForSubtask] = useState<string | null>(null);
+  const [deleteConfig, setDeleteConfig] = useState<{ id: string, title: string } | null>(null);
 
   // Auth Handling
   useEffect(() => {
@@ -106,6 +107,78 @@ const App: React.FC = () => {
     return syncParents(parent.id, updatedTasks);
   };
 
+  const generateRecurringInstances = (baseTask: Task, allTasks: Task[] = []): Task[] => {
+    if (!baseTask.isRecurring || !baseTask.recurrencePattern) return [];
+
+    // Get subtree of the baseTask at the same date
+    const getSubtree = (parentId: string): Task[] => {
+      const children = allTasks.filter(t => t.parentId === parentId && t.date === baseTask.date);
+      let subtree = [...children];
+      children.forEach(child => {
+        subtree = [...subtree, ...getSubtree(child.id)];
+      });
+      return subtree;
+    };
+    const baseSubtree = getSubtree(baseTask.id);
+
+    const instances: Task[] = [];
+    const startDate = new Date(baseTask.date);
+    const endDate = baseTask.recurrenceEndDate ? new Date(baseTask.recurrenceEndDate) : new Date(startDate);
+    if (!baseTask.recurrenceEndDate) endDate.setMonth(endDate.getMonth() + 3); // Default 3 months
+
+    let currentDate = new Date(startDate);
+    currentDate.setDate(currentDate.getDate() + 1); // Start from next occurrence
+
+    while (currentDate <= endDate) {
+      let shouldAdd = false;
+      if (baseTask.recurrencePattern === RecurrencePattern.DAILY) shouldAdd = true;
+      else if (baseTask.recurrencePattern === RecurrencePattern.WEEKLY) {
+        if (currentDate.getDay() === startDate.getDay()) shouldAdd = true;
+      } else if (baseTask.recurrencePattern === RecurrencePattern.WEEKDAYS) {
+        const day = currentDate.getDay();
+        if (day !== 0 && day !== 6) shouldAdd = true;
+      } else if (baseTask.recurrencePattern === RecurrencePattern.MONTHLY) {
+        if (currentDate.getDate() === startDate.getDate()) shouldAdd = true;
+      }
+
+      if (shouldAdd) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const newRootId = generateId();
+
+        // Clone the root task for this date
+        instances.push({
+          ...baseTask,
+          id: newRootId,
+          date: dateStr,
+          recurringParentId: baseTask.id,
+          isRecurring: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+
+        // Clone the subtree and link it to the new parent IDs
+        const idMap: Record<string, string> = { [baseTask.id]: newRootId };
+        baseSubtree.forEach(st => {
+          const newStId = generateId();
+          idMap[st.id] = newStId;
+          instances.push({
+            ...st,
+            id: newStId,
+            parentId: idMap[st.parentId!] || null,
+            date: dateStr,
+            recurringParentId: st.id,
+            isRecurring: true,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          });
+        });
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+      if (instances.length > 500) break; // Safety break
+    }
+    return instances;
+  };
+
   const addTask = async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'user_id'>) => {
     if (!session?.user?.id) return;
 
@@ -118,41 +191,10 @@ const App: React.FC = () => {
     } as Task;
 
     const tasksToInsert: Task[] = [newTask];
+    const recurringInstances = generateRecurringInstances(newTask, tasks);
+    tasksToInsert.push(...recurringInstances);
 
-    if (newTask.isRecurring && newTask.recurrencePattern) {
-      const startDate = new Date(newTask.date);
-      const endDate = newTask.recurrenceEndDate ? new Date(newTask.recurrenceEndDate) : new Date(startDate);
-      if (!newTask.recurrenceEndDate) endDate.setMonth(endDate.getMonth() + 3); // Default 3 months
-
-      let currentDate = new Date(startDate);
-      currentDate.setDate(currentDate.getDate() + 1); // Start from next occurrence
-
-      while (currentDate <= endDate) {
-        let shouldAdd = false;
-        if (newTask.recurrencePattern === RecurrencePattern.DAILY) shouldAdd = true;
-        else if (newTask.recurrencePattern === RecurrencePattern.WEEKLY) {
-          if (currentDate.getDay() === startDate.getDay()) shouldAdd = true;
-        } else if (newTask.recurrencePattern === RecurrencePattern.WEEKDAYS) {
-          const day = currentDate.getDay();
-          if (day !== 0 && day !== 6) shouldAdd = true;
-        } else if (newTask.recurrencePattern === RecurrencePattern.MONTHLY) {
-          if (currentDate.getDate() === startDate.getDate()) shouldAdd = true;
-        }
-
-        if (shouldAdd) {
-          tasksToInsert.push({
-            ...newTask,
-            id: generateId(),
-            date: currentDate.toISOString().split('T')[0],
-            recurringParentId: newTask.id,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          });
-        }
-        currentDate.setDate(currentDate.getDate() + 1);
-        if (tasksToInsert.length > 365) break; // Safety break
-      }
-    }
+    // Unified recurrence handled by helper above
 
     const { error } = await supabase.from('tasks').insert(tasksToInsert);
     if (error) {
@@ -212,14 +254,73 @@ const App: React.FC = () => {
   };
 
   const updateTask = async (id: string, updates: Partial<Task>, moveSubtasks = false) => {
+    const originalTask = tasks.find(t => t.id === id);
     const { error } = await supabase.from('tasks').update({ ...updates, updatedAt: Date.now() }).eq('id', id);
     if (error) {
       console.error('Error updating task:', error);
       return;
     }
 
+    // Handle transition to recurring
+    let addedRecurringInstances: Task[] = [];
+    let updatedTreeInLocal: Task[] = [];
+
+    if (updates.isRecurring && !originalTask?.isRecurring) {
+      // 1. Identify all tasks in the hierarchy (Up and Down)
+      const treeIds = new Set<string>();
+
+      // Go Down
+      const collectDown = (parentId: string) => {
+        treeIds.add(parentId);
+        tasks.filter(t => t.parentId === parentId && t.date === originalTask.date).forEach(c => collectDown(c.id));
+      };
+      collectDown(id);
+
+      // Go Up
+      let currentRoot = originalTask;
+      treeIds.add(currentRoot.id);
+      while (currentRoot.parentId) {
+        const parent = tasks.find(t => t.id === currentRoot.parentId);
+        if (!parent) break;
+        treeIds.add(parent.id);
+        currentRoot = parent;
+      }
+
+      // 2. Propagate recurrence properties in DB for the whole tree
+      const recProps = {
+        isRecurring: true,
+        recurrencePattern: updates.recurrencePattern || originalTask.recurrencePattern,
+        recurrenceEndDate: updates.recurrenceEndDate || originalTask.recurrenceEndDate,
+        updatedAt: Date.now()
+      };
+
+      const { error: propError } = await supabase.from('tasks').update(recProps).in('id', Array.from(treeIds));
+      if (propError) console.error('Error propagating recurrence:', propError);
+
+      // 3. Generate instances for the WHOLE ROOT TREE starting from its root
+      // This ensures the entire hierarchy repeats correctly
+      const updatedRoot = { ...currentRoot, ...recProps } as Task;
+      addedRecurringInstances = generateRecurringInstances(updatedRoot, tasks);
+
+      if (addedRecurringInstances.length > 0) {
+        const { error: insertError } = await supabase.from('tasks').insert(addedRecurringInstances);
+        if (insertError) {
+          console.error('Error inserting new recurring instances:', insertError);
+        } else {
+          showToast(`Hierarchy is now recurring! Added ${addedRecurringInstances.length} task instances.`, 'success');
+        }
+      }
+
+      // Prepare local state update for the tree
+      updatedTreeInLocal = tasks.map(t => treeIds.has(t.id) ? { ...t, ...recProps } : t);
+    }
+
     setTasks(prev => {
-      let updated = prev.map(t => t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t);
+      let currentPool = updatedTreeInLocal.length > 0 ? updatedTreeInLocal : prev;
+      let updated = currentPool.map(t => t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t);
+      if (addedRecurringInstances.length > 0) {
+        updated = [...updated, ...addedRecurringInstances];
+      }
 
       if (moveSubtasks) {
         const tasksToMove = prev.filter(t => t.parentId === id && t.date === prev.find(p => p.id === id)?.date);
@@ -240,31 +341,58 @@ const App: React.FC = () => {
     });
   };
 
-  const deleteTask = async (id: string) => {
-    const deleteRecursiveDB = async (taskId: string) => {
-      // Find children
-      const children = tasks.filter(t => t.parentId === taskId);
+  const deleteTask = async (id: string, deleteAll = false) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+
+    // Series logic: sharing same recurringParentId OR being the root
+    const seriesId = task.recurringParentId || task.id;
+
+    // If it's a recurring task and we haven't confirmed "deleteAll", show prompt
+    if (!deleteAll && (task.isRecurring || task.recurringParentId)) {
+      setDeleteConfig({ id, title: task.title });
+      return;
+    }
+
+    const tasksToDelete = deleteAll
+      ? tasks.filter(t => t.id === seriesId || t.recurringParentId === seriesId)
+      : [task];
+
+    const deleteRecursiveDB = async (t: Task) => {
+      const children = tasks.filter(child => child.parentId === t.id && child.date === t.date);
       for (const child of children) {
-        await deleteRecursiveDB(child.id);
+        await deleteRecursiveDB(child);
       }
-      await supabase.from('tasks').delete().eq('id', taskId);
+      await supabase.from('tasks').delete().eq('id', t.id);
     };
 
-    const deleteRecursiveLocal = (taskId: string, currentTasks: Task[]): Task[] => {
+    for (const t of tasksToDelete) {
+      await deleteRecursiveDB(t);
+    }
+
+    const deleteRecursiveLocal = (taskId: string, date: string, currentTasks: Task[]): Task[] => {
       let filtered = currentTasks.filter(t => t.id !== taskId);
-      const subtasks = currentTasks.filter(t => t.parentId === taskId);
+      const subtasks = currentTasks.filter(t => t.parentId === taskId && t.date === date);
       subtasks.forEach(sub => {
-        filtered = deleteRecursiveLocal(sub.id, filtered);
+        filtered = deleteRecursiveLocal(sub.id, date, filtered);
       });
       return filtered;
     };
 
-    await deleteRecursiveDB(id);
     setTasks(prev => {
-      const target = prev.find(t => t.id === id);
-      const filtered = deleteRecursiveLocal(id, prev);
-      return target?.parentId ? syncParents(target.parentId, filtered) : filtered;
+      let updated = prev;
+      tasksToDelete.forEach(t => {
+        updated = deleteRecursiveLocal(t.id, t.date, updated);
+      });
+      // Optionally sync parents for EACH deleted task if they had parents
+      tasksToDelete.forEach(t => {
+        if (t.parentId) updated = syncParents(t.parentId, updated);
+      });
+      return updated;
     });
+
+    setDeleteConfig(null);
+    showToast(deleteAll ? 'Entire series deleted' : 'Task deleted', 'success');
   };
 
   const carryOverTask = async (id: string, newDate: string, reason?: string) => {
@@ -399,7 +527,7 @@ const App: React.FC = () => {
           {viewType === 'DASHBOARD' ? (
             <Dashboard
               tasks={tasks}
-              onTaskClick={(t) => handleOpenModal(t)}
+              onTaskClick={(t) => { setSelectedDate(t.date); setViewType('LIST'); }}
               onGoToDate={(d) => { setSelectedDate(d); setViewType('LIST'); }}
             />
           ) : viewType === 'LIST' ? (
@@ -451,6 +579,51 @@ const App: React.FC = () => {
             onClose={() => setIsAIModalOpen(false)}
             onPlanGenerated={handleAIPlanGenerated}
           />
+        )}
+
+        {/* Delete Confirmation Modal for Recurring Tasks */}
+        {deleteConfig && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md p-8 border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in duration-300">
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mb-6 text-red-600 dark:text-red-400">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+
+              <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Delete Task?</h3>
+              <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
+                "<span className="font-bold text-slate-700 dark:text-slate-200">{deleteConfig.title}</span>" is a recurring task. How would you like to delete it?
+              </p>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => deleteTask(deleteConfig.id, false)}
+                  className="w-full py-4 px-6 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold rounded-2xl transition-all flex items-center justify-between group"
+                >
+                  <span>Delete only this instance</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => deleteTask(deleteConfig.id, true)}
+                  className="w-full py-4 px-6 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-red-200 dark:shadow-none flex items-center justify-between group"
+                >
+                  <span>Delete all instances</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setDeleteConfig(null)}
+                  className="w-full py-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
 

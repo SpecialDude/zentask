@@ -120,6 +120,10 @@ Open http://localhost:3000 in your browser.
 | `carriedOverFrom` | TEXT | Date carried over from |
 | `createdAt` | BIGINT | Unix timestamp |
 | `updatedAt` | BIGINT | Unix timestamp |
+| `isRecurring` | BOOLEAN | Is this a recurring task |
+| `recurrencePattern` | TEXT | DAILY, WEEKLY, WEEKDAYS, MONTHLY |
+| `recurrenceEndDate` | TEXT | End date for recurrence (YYYY-MM-DD) |
+| `recurringParentId` | TEXT | ID of the original recurring task |
 
 ### Row Level Security (RLS)
 
@@ -166,7 +170,8 @@ The database is secured with RLS policies that ensure:
 supabase/
 ├── migrations/
 │   ├── 001_create_tasks_table.sql    # Main schema + RLS
-│   └── 002_add_priority_column.sql   # Priority field migration
+│   ├── 002_add_priority_column.sql   # Priority field migration
+│   └── 003_add_recurring_columns.sql # Recurring tasks support migration
 ```
 
 ---
