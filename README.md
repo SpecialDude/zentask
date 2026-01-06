@@ -63,9 +63,10 @@ The AI is instructed to act as a "Productivity Expert." It parses free-form text
 
 1.  Clone the repository.
 2.  Copy `.env.example` to `.env`.
-3.  Fill in your `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `API_KEY`.
-4.  Ensure your Supabase database has a `tasks` table with columns matching the `Task` interface in `types.ts`.
-5.  Launch the application using your preferred dev server.
+3.  Fill in your `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `GEMINI_API_KEY`.
+4.  **Set up Supabase Database**: Follow the [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) guide.
+5.  Run `npm install` to install dependencies.
+6.  Run `npm run dev` to start the development server.
 
 ## 📝 Database Schema Recommendation (Supabase)
 
