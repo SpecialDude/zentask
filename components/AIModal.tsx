@@ -1,17 +1,25 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { TaskStatus } from '../types';
+import VoiceRecorder from './VoiceRecorder';
 
 interface AIModalProps {
   onClose: () => void;
   onPlanGenerated: (tasks: any[]) => void;
 }
 
+type InputMode = 'text' | 'voice';
+
 const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
   const [input, setInput] = useState('');
+  const [inputMode, setInputMode] = useState<InputMode>('text');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleVoiceTranscript = useCallback((transcript: string) => {
+    setInput(transcript);
+  }, []);
 
   const generatePlan = async () => {
     if (!input.trim()) return;
@@ -70,7 +78,8 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
       <div className="relative bg-white dark:bg-slate-900 w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
-        <div className="p-6 md:p-8 space-y-6">
+        <div className="p-6 md:p-8 space-y-5">
+          {/* Header */}
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center text-purple-600">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -83,14 +92,57 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
             </div>
           </div>
 
+          {/* Input Mode Toggle */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+            <button
+              type="button"
+              onClick={() => setInputMode('text')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium transition-all ${inputMode === 'text'
+                  ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM7 8H5v2h2V8zm2 0h2v2H9V8zm6 0h-2v2h2V8z" clipRule="evenodd" />
+              </svg>
+              <span>Type</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setInputMode('voice')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium transition-all ${inputMode === 'voice'
+                  ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+              </svg>
+              <span>Voice</span>
+            </button>
+          </div>
+
+          {/* Voice Recorder (shown in voice mode) */}
+          {inputMode === 'voice' && (
+            <VoiceRecorder
+              onTranscriptChange={handleVoiceTranscript}
+              disabled={loading}
+            />
+          )}
+
+          {/* Text Input / Transcript Display */}
           <textarea
-            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 focus:ring-0 rounded-2xl px-4 py-4 text-sm md:text-base transition-all outline-none resize-none min-h-[160px]"
-            placeholder="e.g., I need to prep for the big meeting at 10am for an hour. After that, I'll grab lunch with Sarah. In the afternoon I have to finish the coding task which involves refactoring the auth logic and writing tests..."
+            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 focus:ring-0 rounded-2xl px-4 py-4 text-sm md:text-base transition-all outline-none resize-none min-h-[140px]"
+            placeholder={inputMode === 'voice'
+              ? "Your voice transcript will appear here... You can also edit it before generating."
+              : "e.g., I need to prep for the big meeting at 10am for an hour. After that, I'll grab lunch with Sarah. In the afternoon I have to finish the coding task..."
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={loading}
           />
 
+          {/* Error */}
           {error && (
             <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-xl flex items-center space-x-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -100,6 +152,7 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
             </div>
           )}
 
+          {/* Actions */}
           <div className="flex items-center justify-between pt-2">
             <button
               onClick={onClose}
@@ -110,9 +163,8 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
             <button
               onClick={generatePlan}
               disabled={loading || !input.trim()}
-              className={`flex items-center space-x-2 px-8 py-3 rounded-xl font-bold text-white transition-all shadow-xl ${
-                loading ? 'bg-purple-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/20 active:scale-95'
-              }`}
+              className={`flex items-center space-x-2 px-8 py-3 rounded-xl font-bold text-white transition-all shadow-xl ${loading ? 'bg-purple-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/20 active:scale-95'
+                }`}
             >
               {loading ? (
                 <>
@@ -123,7 +175,7 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
                   <span>Organizing...</span>
                 </>
               ) : (
-                <span>Generate Plan</span>
+                <span>Generate Plan ✨</span>
               )}
             </button>
           </div>
