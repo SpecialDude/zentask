@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Task, TaskStatus } from '../types';
+import { Task, TaskStatus, TaskPriority } from '../types';
 
 interface TaskModalProps {
   onClose: () => void;
@@ -15,9 +15,17 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
     description: initialData?.description || '',
     duration: initialData?.duration || 0,
     startTime: initialData?.startTime || '',
+    priority: initialData?.priority || undefined as TaskPriority | undefined,
     completion: initialData?.completion || 0,
     status: initialData?.status || TaskStatus.TODO
   });
+
+  const priorityOptions: { value: TaskPriority; label: string; color: string; bgColor: string }[] = [
+    { value: TaskPriority.LOW, label: 'Low', color: 'text-slate-500', bgColor: 'bg-slate-100 dark:bg-slate-800' },
+    { value: TaskPriority.MEDIUM, label: 'Medium', color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-900/30' },
+    { value: TaskPriority.HIGH, label: 'High', color: 'text-orange-600', bgColor: 'bg-orange-50 dark:bg-orange-900/30' },
+    { value: TaskPriority.URGENT, label: 'Urgent', color: 'text-red-600', bgColor: 'bg-red-50 dark:bg-red-900/30' },
+  ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,9 +47,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
         <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-4 md:space-y-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
           <div className="space-y-1 md:space-y-2">
             <label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-400">Title</label>
-            <input 
+            <input
               autoFocus
-              type="text" 
+              type="text"
               required
               className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-2 md:py-3 text-base md:text-lg font-semibold transition-all outline-none"
               placeholder="What needs to be done?"
@@ -52,7 +60,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
 
           <div className="space-y-1 md:space-y-2">
             <label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-400">Description</label>
-            <textarea 
+            <textarea
               rows={3}
               className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-2 md:py-3 text-xs md:text-sm transition-all outline-none resize-none"
               placeholder="Add more details..."
@@ -64,8 +72,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
           <div className="grid grid-cols-2 gap-3 md:gap-4">
             <div className="space-y-1 md:space-y-2">
               <label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-400">Start Time</label>
-              <input 
-                type="time" 
+              <input
+                type="time"
                 className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-2 text-xs md:text-sm transition-all outline-none"
                 value={formData.startTime}
                 onChange={e => setFormData({ ...formData, startTime: e.target.value })}
@@ -73,13 +81,33 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
             </div>
             <div className="space-y-1 md:space-y-2">
               <label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-400">Duration (min)</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 min="0"
                 className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-2 text-xs md:text-sm transition-all outline-none"
                 value={formData.duration}
                 onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value) || 0 })}
               />
+            </div>
+          </div>
+
+          {/* Priority Selector */}
+          <div className="space-y-1 md:space-y-2">
+            <label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-400">Priority</label>
+            <div className="flex flex-wrap gap-2">
+              {priorityOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, priority: formData.priority === option.value ? undefined : option.value })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${formData.priority === option.value
+                      ? `${option.bgColor} ${option.color} ring-2 ring-offset-1 ring-current`
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -89,16 +117,16 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
                 <label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-400">Progress</label>
                 <span className="text-xs md:text-sm font-bold text-primary">{formData.completion}%</span>
               </div>
-              <input 
-                type="range" 
+              <input
+                type="range"
                 className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary"
                 min="0"
                 max="100"
                 value={formData.completion}
                 onChange={e => {
                   const val = parseInt(e.target.value);
-                  setFormData({ 
-                    ...formData, 
+                  setFormData({
+                    ...formData,
                     completion: val,
                     status: val === 100 ? TaskStatus.COMPLETED : val > 0 ? TaskStatus.IN_PROGRESS : TaskStatus.TODO
                   });
@@ -108,7 +136,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
           )}
 
           <div className="pt-4 pb-4 sm:pb-0">
-            <button 
+            <button
               type="submit"
               className="w-full bg-primary hover:bg-indigo-700 text-white font-bold py-3 md:py-4 rounded-2xl shadow-xl shadow-primary/30 transition-all active:scale-95"
             >

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Task, TaskStatus } from '../types';
+import { Task, TaskStatus, TaskPriority } from '../types';
 import { formatDuration, calculateAggregateProgress } from '../utils';
 
 interface TaskItemProps {
@@ -14,15 +14,15 @@ interface TaskItemProps {
   level: number;
 }
 
-const TaskItem: React.FC<TaskItemProps> = ({ 
-  task, allTasks, onUpdateTask, onDeleteTask, onEditTask, onAddSubtask, onCarryOver, level 
+const TaskItem: React.FC<TaskItemProps> = ({
+  task, allTasks, onUpdateTask, onDeleteTask, onEditTask, onAddSubtask, onCarryOver, level
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [showCancelPrompt, setShowCancelPrompt] = useState(false);
   const [showCarryPrompt, setShowCarryPrompt] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [carryReason, setCarryReason] = useState('');
-  
+
   const tomorrowStr = useMemo(() => {
     const d = new Date(task.date);
     d.setDate(d.getDate() + 1);
@@ -35,11 +35,21 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const progress = task.completion;
 
   const getStatusColor = (status: TaskStatus) => {
-    switch(status) {
+    switch (status) {
       case TaskStatus.COMPLETED: return 'bg-green-500';
       case TaskStatus.IN_PROGRESS: return 'bg-primary';
       case TaskStatus.CANCELLED: return 'bg-slate-400';
       default: return 'bg-slate-200 dark:bg-slate-700';
+    }
+  };
+
+  const getPriorityConfig = (priority?: TaskPriority) => {
+    switch (priority) {
+      case TaskPriority.URGENT: return { label: '🔥 Urgent', bgColor: 'bg-red-100 dark:bg-red-900/30', textColor: 'text-red-600 dark:text-red-400' };
+      case TaskPriority.HIGH: return { label: 'High', bgColor: 'bg-orange-100 dark:bg-orange-900/30', textColor: 'text-orange-600 dark:text-orange-400' };
+      case TaskPriority.MEDIUM: return { label: 'Medium', bgColor: 'bg-blue-100 dark:bg-blue-900/30', textColor: 'text-blue-600 dark:text-blue-400' };
+      case TaskPriority.LOW: return { label: 'Low', bgColor: 'bg-slate-100 dark:bg-slate-700', textColor: 'text-slate-500' };
+      default: return null;
     }
   };
 
@@ -52,9 +62,9 @@ const TaskItem: React.FC<TaskItemProps> = ({
   };
 
   const handleCancelSubmit = () => {
-    onUpdateTask(task.id, { 
-      status: TaskStatus.CANCELLED, 
-      cancelReason 
+    onUpdateTask(task.id, {
+      status: TaskStatus.CANCELLED,
+      cancelReason
     });
     setShowCancelPrompt(false);
   };
@@ -76,14 +86,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
     <div className={`flex flex-col ${level > 0 ? 'ml-4 md:ml-8 mt-2 border-l-2 border-slate-100 dark:border-slate-800 pl-4' : ''}`}>
       <div className={`group relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 md:p-4 transition-all shadow-sm hover:shadow-md ${task.status === TaskStatus.CANCELLED || task.carriedOverTo ? 'opacity-60' : ''}`}>
         <div className="flex items-start gap-3 md:gap-4">
-          <button 
+          <button
             disabled={!!task.carriedOverTo}
             onClick={handleStatusToggle}
-            className={`mt-1 h-5 w-5 md:h-6 md:w-6 rounded-lg border-2 flex items-center justify-center transition-all ${
-              task.status === TaskStatus.COMPLETED 
-              ? 'bg-green-500 border-green-500 text-white' 
-              : 'border-slate-300 dark:border-slate-600'
-            } ${task.carriedOverTo ? 'cursor-not-allowed opacity-50' : ''}`}
+            className={`mt-1 h-5 w-5 md:h-6 md:w-6 rounded-lg border-2 flex items-center justify-center transition-all ${task.status === TaskStatus.COMPLETED
+                ? 'bg-green-500 border-green-500 text-white'
+                : 'border-slate-300 dark:border-slate-600'
+              } ${task.carriedOverTo ? 'cursor-not-allowed opacity-50' : ''}`}
           >
             {task.status === TaskStatus.COMPLETED && (
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 md:h-4 md:w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -113,6 +122,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
                     {task.startTime}
                   </span>
                 )}
+                {getPriorityConfig(task.priority) && (
+                  <span className={`px-1.5 py-0.5 rounded font-semibold ${getPriorityConfig(task.priority)!.bgColor} ${getPriorityConfig(task.priority)!.textColor}`}>
+                    {getPriorityConfig(task.priority)!.label}
+                  </span>
+                )}
                 <span className={`px-1.5 py-0.5 rounded text-white ${getStatusColor(task.status)} whitespace-nowrap`}>
                   {task.status.replace('_', ' ')}
                 </span>
@@ -140,7 +154,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
             <div className="flex items-center gap-2 md:gap-3">
               <div className="flex-1 h-1 md:h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div 
+                <div
                   className={`h-full transition-all duration-500 ${getStatusColor(task.status)}`}
                   style={{ width: `${progress}%` }}
                 ></div>
@@ -159,10 +173,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                 </button>
                 <div className="relative">
-                  <button 
+                  <button
                     onClick={() => {
                       if (task.status !== TaskStatus.CANCELLED) setShowCancelPrompt(!showCancelPrompt);
-                    }} 
+                    }}
                     className={`p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors ${task.status === TaskStatus.CANCELLED ? 'text-red-500' : 'text-slate-400 hover:text-red-500'}`}
                     title="Cancel Task"
                   >
@@ -171,7 +185,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   {showCancelPrompt && (
                     <div className="absolute right-0 top-full mt-2 w-56 md:w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 shadow-2xl z-50">
                       <p className="text-xs font-semibold mb-2">Cancel reason?</p>
-                      <textarea 
+                      <textarea
                         autoFocus
                         className="w-full text-xs p-2 border rounded bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 mb-2 outline-none"
                         value={cancelReason}
@@ -215,7 +229,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
         </div>
 
         {subtasks.length > 0 && (
-          <button 
+          <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="absolute left-1/2 -bottom-2 transform -translate-x-1/2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-0.5 text-slate-400 hover:text-primary transition-all z-10"
           >
@@ -229,7 +243,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
       {isExpanded && subtasks.length > 0 && (
         <div className="space-y-2 mt-2">
           {subtasks.map(sub => (
-            <TaskItem 
+            <TaskItem
               key={sub.id}
               task={sub}
               allTasks={allTasks}

@@ -6,6 +6,13 @@ export enum TaskStatus {
   CANCELLED = 'CANCELLED'
 }
 
+export enum TaskPriority {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  URGENT = 'URGENT'
+}
+
 export type ViewType = 'LIST' | 'KANBAN';
 
 export interface Task {
@@ -15,6 +22,7 @@ export interface Task {
   title: string;
   description: string;
   status: TaskStatus;
+  priority?: TaskPriority;
   completion: number; // 0 to 100
   date: string; // ISO String (YYYY-MM-DD)
   duration?: number; // Minutes
@@ -26,3 +34,4 @@ export interface Task {
   createdAt: number;
   updatedAt: number;
 }
+

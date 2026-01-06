@@ -9,17 +9,20 @@ import KanbanBoard from './components/KanbanBoard';
 import TaskModal from './components/TaskModal';
 import AIModal from './components/AIModal';
 import Auth from './components/Auth';
+import LoadingSpinner from './components/LoadingSpinner';
+import ErrorBoundary from './components/ErrorBoundary';
 import { supabase } from './supabase';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
   const [viewType, setViewType] = useState<ViewType>('LIST');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    return localStorage.getItem('theme') === 'dark' || 
-           (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    return localStorage.getItem('theme') === 'dark' ||
+      (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
@@ -43,20 +46,23 @@ const App: React.FC = () => {
   useEffect(() => {
     if (session?.user?.id) {
       const fetchTasks = async () => {
+        setIsLoading(true);
         const { data, error } = await supabase
           .from('tasks')
           .select('*')
           .eq('user_id', session.user.id);
-        
+
         if (error) {
           console.error('Error fetching tasks:', error);
         } else if (data) {
           setTasks(data);
         }
+        setIsLoading(false);
       };
       fetchTasks();
     } else {
       setTasks([]);
+      setIsLoading(false);
     }
   }, [session]);
 
@@ -97,7 +103,7 @@ const App: React.FC = () => {
 
   const addTask = async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'user_id'>) => {
     if (!session?.user?.id) return;
-    
+
     const newTask: Task = {
       ...taskData,
       id: generateId(),
@@ -121,7 +127,7 @@ const App: React.FC = () => {
 
   const handleAIPlanGenerated = async (generatedTasks: any[]) => {
     if (!session?.user?.id) return;
-    
+
     const nextTasks: Task[] = [];
     const processTask = (t: any, parentId: string | null = null) => {
       const taskId = generateId();
@@ -140,14 +146,14 @@ const App: React.FC = () => {
         updatedAt: Date.now()
       } as Task;
       nextTasks.push(newTask);
-      
+
       if (t.subtasks && Array.isArray(t.subtasks)) {
         t.subtasks.forEach((st: any) => processTask(st, taskId));
       }
     };
 
     generatedTasks.forEach(t => processTask(t));
-    
+
     const { error } = await supabase.from('tasks').insert(nextTasks);
     if (error) {
       console.error('Error batch adding AI tasks:', error);
@@ -166,22 +172,22 @@ const App: React.FC = () => {
 
     setTasks(prev => {
       let updated = prev.map(t => t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t);
-      
+
       if (moveSubtasks) {
         const tasksToMove = prev.filter(t => t.parentId === id && t.date === prev.find(p => p.id === id)?.date);
         tasksToMove.forEach(t => {
-          supabase.from('tasks').update({ 
-            status: updates.status || t.status, 
-            completion: updates.completion !== undefined ? updates.completion : t.completion, 
-            updatedAt: Date.now() 
+          supabase.from('tasks').update({
+            status: updates.status || t.status,
+            completion: updates.completion !== undefined ? updates.completion : t.completion,
+            updatedAt: Date.now()
           }).eq('id', t.id).then();
         });
 
-        updated = updated.map(t => t.parentId === id && t.date === prev.find(p => p.id === id)?.date 
-          ? { ...t, status: updates.status || t.status, completion: updates.completion !== undefined ? updates.completion : t.completion, updatedAt: Date.now() } 
+        updated = updated.map(t => t.parentId === id && t.date === prev.find(p => p.id === id)?.date
+          ? { ...t, status: updates.status || t.status, completion: updates.completion !== undefined ? updates.completion : t.completion, updatedAt: Date.now() }
           : t);
       }
-      
+
       return syncParents(id, updated);
     });
   };
@@ -223,11 +229,11 @@ const App: React.FC = () => {
 
     let newParentId = original.parentId;
     const extraLocalTasks: Task[] = [];
-    
+
     if (original.parentId) {
       const originalParent = tasks.find(p => p.id === original.parentId);
       const parentOnNewDate = tasks.find(t => t.parentId === null && t.title === originalParent?.title && t.date === newDate);
-      
+
       if (parentOnNewDate) {
         newParentId = parentOnNewDate.id;
       } else if (originalParent) {
@@ -312,31 +318,39 @@ const App: React.FC = () => {
     return <Auth />;
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <LoadingSpinner size="lg" message="Loading your tasks..." />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-      <Sidebar 
-        viewType={viewType} 
-        setViewType={(v) => { setViewType(v); setIsSidebarOpen(false); }} 
-        isDarkMode={isDarkMode} 
-        setIsDarkMode={setIsDarkMode} 
+      <Sidebar
+        viewType={viewType}
+        setViewType={(v) => { setViewType(v); setIsSidebarOpen(false); }}
+        isDarkMode={isDarkMode}
+        setIsDarkMode={setIsDarkMode}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
-      
+
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <Header 
-          selectedDate={selectedDate} 
+        <Header
+          selectedDate={selectedDate}
           setSelectedDate={setSelectedDate}
-          onAddTask={() => handleOpenModal()} 
+          onAddTask={() => handleOpenModal()}
           onOpenSidebar={() => setIsSidebarOpen(true)}
           onOpenAI={() => setIsAIModalOpen(true)}
           userEmail={session.user.email}
         />
-        
+
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
           {viewType === 'LIST' ? (
-            <ListView 
-              tasks={filteredTasks} 
+            <ListView
+              tasks={filteredTasks}
               allTasks={tasks}
               onUpdateTask={updateTask}
               onDeleteTask={deleteTask}
@@ -345,7 +359,7 @@ const App: React.FC = () => {
               onCarryOver={carryOverTask}
             />
           ) : (
-            <KanbanBoard 
+            <KanbanBoard
               tasks={filteredTasks}
               allTasks={tasks}
               onUpdateTask={updateTask}
@@ -357,7 +371,7 @@ const App: React.FC = () => {
         </div>
 
         {isModalOpen && (
-          <TaskModal 
+          <TaskModal
             onClose={() => setIsModalOpen(false)}
             onSave={(data) => {
               if (editingTask) {
@@ -379,7 +393,7 @@ const App: React.FC = () => {
         )}
 
         {isAIModalOpen && (
-          <AIModal 
+          <AIModal
             onClose={() => setIsAIModalOpen(false)}
             onPlanGenerated={handleAIPlanGenerated}
           />
@@ -389,4 +403,10 @@ const App: React.FC = () => {
   );
 };
 
-export default App;
+const AppWithErrorBoundary: React.FC = () => (
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
+
+export default AppWithErrorBoundary;
