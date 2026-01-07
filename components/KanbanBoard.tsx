@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Task, TaskStatus } from '../types';
 
 interface KanbanBoardProps {
@@ -15,8 +15,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [dropAction, setDropAction] = useState<{ task: Task, status: string | TaskStatus } | null>(null);
   const [promptData, setPromptData] = useState({ date: '', reason: '' });
-  const [touchDragging, setTouchDragging] = useState<{ task: Task; x: number; y: number } | null>(null);
+  const [touchDragging, setTouchDragging] = useState<{ task: Task; x: number; y: number; startX: number; startY: number } | null>(null);
+  const [isDraggingActive, setIsDraggingActive] = useState(false);
   const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragThreshold = 10; // pixels before drag activates
 
   const columns = [
     { id: TaskStatus.TODO, title: 'To Do', color: 'bg-slate-400', isVirtual: false },
@@ -64,22 +67,72 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
     setActiveTask(null);
   };
 
+  // Clear long press timer on cleanup
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+      }
+    };
+  }, []);
+
   // Touch event handlers for mobile
-  const onTouchStart = (e: React.TouchEvent, task: Task) => {
+  const onTouchStart = useCallback((e: React.TouchEvent, task: Task) => {
     if (task.carriedOverTo) return;
     const touch = e.touches[0];
-    setTouchDragging({ task, x: touch.clientX, y: touch.clientY });
-    setActiveTask(task);
-  };
 
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (!touchDragging) return;
+    // Start long press timer
+    longPressTimer.current = setTimeout(() => {
+      // Vibrate on supported devices
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+      setTouchDragging({
+        task,
+        x: touch.clientX,
+        y: touch.clientY,
+        startX: touch.clientX,
+        startY: touch.clientY
+      });
+      setActiveTask(task);
+      setIsDraggingActive(true);
+    }, 300); // 300ms long press to start drag
+  }, []);
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0];
-    setTouchDragging({ ...touchDragging, x: touch.clientX, y: touch.clientY });
-  };
 
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (!touchDragging) return;
+    // If we have a pending long press, check if user moved too much
+    if (longPressTimer.current && touchDragging === null) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      return;
+    }
+
+    if (!touchDragging || !isDraggingActive) return;
+
+    // Prevent scrolling while dragging
+    e.preventDefault();
+
+    setTouchDragging({
+      ...touchDragging,
+      x: touch.clientX,
+      y: touch.clientY
+    });
+  }, [touchDragging, isDraggingActive]);
+
+  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    // Clear long press timer
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+
+    if (!touchDragging || !isDraggingActive) {
+      setTouchDragging(null);
+      setIsDraggingActive(false);
+      return;
+    }
 
     // Find which column the touch ended over
     const touch = e.changedTouches[0];
@@ -99,7 +152,18 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
 
     setTouchDragging(null);
     setActiveTask(null);
-  };
+    setIsDraggingActive(false);
+  }, [touchDragging, isDraggingActive]);
+
+  const onTouchCancel = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    setTouchDragging(null);
+    setActiveTask(null);
+    setIsDraggingActive(false);
+  }, []);
 
   const handlePromptSubmit = () => {
     if (!dropAction) return;
@@ -124,11 +188,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
       onTouchStart={(e) => isInStatus && onTouchStart(e, task)}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      className={`relative p-3 rounded-xl shadow-sm border transition-all group ${!isInStatus
+      onTouchCancel={onTouchCancel}
+      style={{ touchAction: isDraggingActive ? 'none' : 'auto' }}
+      className={`relative p-3 rounded-xl shadow-sm border transition-all group select-none ${!isInStatus
         ? 'bg-slate-50/50 dark:bg-slate-900/30 border-dashed border-slate-200 dark:border-slate-800 opacity-60'
         : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:shadow-md cursor-pointer active:scale-95'
-        } ${activeTask?.id === task.id ? 'opacity-40 grayscale scale-105' : ''} ${level > 0 ? 'ml-4' : ''} ${touchDragging?.task.id === task.id ? 'ring-2 ring-primary' : ''}`}
-      onClick={() => isInStatus && !touchDragging && onEditTask(task)}
+        } ${activeTask?.id === task.id ? 'opacity-40 grayscale scale-105' : ''} ${level > 0 ? 'ml-4' : ''} ${touchDragging?.task.id === task.id && isDraggingActive ? 'ring-2 ring-primary opacity-50' : ''}`}
+      onClick={() => isInStatus && !isDraggingActive && onEditTask(task)}
     >
       {!isInStatus && (
         <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-2 h-px bg-slate-300 dark:bg-slate-700" />
@@ -172,6 +238,21 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
 
   return (
     <div className="flex space-x-6 h-full min-h-[calc(100vh-12rem)] pb-4 overflow-x-auto custom-scrollbar relative">
+      {/* Mobile Drag Preview */}
+      {touchDragging && isDraggingActive && (
+        <div
+          className="fixed z-[200] pointer-events-none bg-white dark:bg-slate-800 border-2 border-primary rounded-xl p-3 shadow-2xl max-w-[200px] opacity-90"
+          style={{
+            left: touchDragging.x - 100 + 'px',
+            top: touchDragging.y - 30 + 'px',
+            transform: 'rotate(-3deg)'
+          }}
+        >
+          <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+            {touchDragging.task.title}
+          </h4>
+        </div>
+      )}
       {columns.map(col => {
         const explicitColTasks = tasks.filter(t => {
           if (col.isVirtual) return !!t.carriedOverTo;
