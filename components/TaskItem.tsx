@@ -92,7 +92,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
         <div className="flex items-start gap-3 md:gap-4">
           <button
             disabled={!!task.carriedOverTo}
-            onClick={handleStatusToggle}
+            onClick={(e) => { e.stopPropagation(); handleStatusToggle(); }}
             className={`mt-1 h-5 w-5 md:h-6 md:w-6 rounded-lg border-2 flex items-center justify-center transition-all ${task.status === TaskStatus.COMPLETED
               ? 'bg-green-500 border-green-500 text-white'
               : 'border-slate-300 dark:border-slate-600'
@@ -178,15 +178,16 @@ const TaskItem: React.FC<TaskItemProps> = ({
           <div className="flex md:flex-row flex-col items-center gap-1 md:space-x-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
             {!task.carriedOverTo && (
               <>
-                <button onClick={() => onAddSubtask(task.id)} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-primary transition-colors" title="Add Subtask">
+                <button onClick={(e) => { e.stopPropagation(); onAddSubtask(task.id); }} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-primary transition-colors" title="Add Subtask">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" /></svg>
                 </button>
-                <button onClick={() => onEditTask(task)} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-primary transition-colors" title="Edit Task">
+                <button onClick={(e) => { e.stopPropagation(); onEditTask(task); }} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-primary transition-colors" title="Edit Task">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                 </button>
                 <div className="relative">
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (task.status !== TaskStatus.CANCELLED) setShowCancelPrompt(!showCancelPrompt);
                     }}
                     className={`p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors ${task.status === TaskStatus.CANCELLED ? 'text-red-500' : 'text-slate-400 hover:text-red-500'}`}
@@ -212,7 +213,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 </div>
                 {canCarryOver && (
                   <div className="relative">
-                    <button onClick={() => setShowCarryPrompt(!showCarryPrompt)} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-blue-500 transition-colors" title="Carry over">
+                    <button onClick={(e) => { e.stopPropagation(); setShowCarryPrompt(!showCarryPrompt); }} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-blue-500 transition-colors" title="Carry over">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                     </button>
                     {showCarryPrompt && (
@@ -242,7 +243,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
         {subtasks.length > 0 && (
           <button
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
             className="absolute left-1/2 -bottom-2 transform -translate-x-1/2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-0.5 text-slate-400 hover:text-primary transition-all z-10"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 md:h-4 md:w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
