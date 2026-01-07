@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { TaskStatus } from '../types';
+import { TaskStatus, TaskPriority, RecurrencePattern } from '../types';
 import VoiceRecorder from './VoiceRecorder';
 
 interface AIModalProps {
@@ -16,6 +16,7 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
   const [inputMode, setInputMode] = useState<InputMode>('text');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewTasks, setPreviewTasks] = useState<any[] | null>(null);
 
   const handleVoiceTranscript = useCallback((transcript: string) => {
     setInput(transcript);
@@ -32,7 +33,17 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
         model: "gemini-3-flash-preview",
         contents: `Convert this plan into a structured task list: "${input}"`,
         config: {
-          systemInstruction: "You are a productivity expert. Convert the user's messy notes into a structured list of tasks and subtasks for a single day. Return ONLY a JSON array of objects. Each object MUST have: 'title' (string), 'description' (string), 'startTime' (optional, HH:mm), 'duration' (optional, number in minutes), and 'subtasks' (optional, array of objects of the same structure). If you see a sequence, nest them appropriately. If a time is mentioned, include it.",
+          systemInstruction: `You are a productivity expert. Convert the user's messy notes into a structured list of tasks and subtasks for a single day. Return ONLY a JSON array of objects.
+Each object MUST have:
+- 'title' (string)
+- 'description' (string)
+- 'startTime' (optional, HH:mm format)
+- 'duration' (optional, number in minutes)
+- 'priority' (optional, one of: LOW, MEDIUM, HIGH, URGENT - infer from urgency words)
+- 'isRecurring' (optional boolean, true if task repeats regularly)
+- 'recurrencePattern' (optional, one of: DAILY, WEEKLY, MONTHLY, WEEKDAYS - only if isRecurring is true)
+- 'subtasks' (optional, array of same structure)
+If you see a sequence, nest them appropriately. If a time is mentioned, include it. Infer priority from urgency cues.`,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
@@ -43,6 +54,9 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
                 description: { type: Type.STRING },
                 startTime: { type: Type.STRING },
                 duration: { type: Type.NUMBER },
+                priority: { type: Type.STRING },
+                isRecurring: { type: Type.BOOLEAN },
+                recurrencePattern: { type: Type.STRING },
                 subtasks: {
                   type: Type.ARRAY,
                   items: {
@@ -52,6 +66,7 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
                       description: { type: Type.STRING },
                       startTime: { type: Type.STRING },
                       duration: { type: Type.NUMBER },
+                      priority: { type: Type.STRING },
                     },
                     required: ["title", "description"]
                   }
@@ -64,8 +79,7 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
       });
 
       const generatedTasks = JSON.parse(response.text || '[]');
-      onPlanGenerated(generatedTasks);
-      onClose();
+      setPreviewTasks(generatedTasks);
     } catch (err: any) {
       console.error(err);
       setError("Failed to generate plan. Please try being more specific or check your connection.");
@@ -73,6 +87,96 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
       setLoading(false);
     }
   };
+
+  const handleAcceptPlan = () => {
+    if (previewTasks) {
+      onPlanGenerated(previewTasks);
+      onClose();
+    }
+  };
+
+  const handleRejectPlan = () => {
+    setPreviewTasks(null);
+  };
+
+  const priorityColors: Record<string, string> = {
+    LOW: 'bg-slate-100 text-slate-600',
+    MEDIUM: 'bg-blue-100 text-blue-600',
+    HIGH: 'bg-orange-100 text-orange-600',
+    URGENT: 'bg-red-100 text-red-600'
+  };
+
+  const renderPreviewTask = (task: any, depth = 0) => (
+    <div key={task.title + depth} className={`p-3 bg-slate-50 dark:bg-slate-800 rounded-xl ${depth > 0 ? 'ml-4 border-l-2 border-primary/30' : ''}`}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="font-semibold text-sm text-slate-800 dark:text-slate-100">{task.title}</span>
+        {task.priority && (
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${priorityColors[task.priority] || 'bg-slate-100 text-slate-600'}`}>
+            {task.priority}
+          </span>
+        )}
+        {task.isRecurring && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 uppercase">
+            {task.recurrencePattern || 'Recurring'}
+          </span>
+        )}
+        {task.startTime && (
+          <span className="text-[10px] text-slate-400">{task.startTime}</span>
+        )}
+      </div>
+      {task.description && (
+        <p className="text-xs text-slate-500 mt-1 line-clamp-2">{task.description}</p>
+      )}
+      {task.subtasks?.length > 0 && (
+        <div className="mt-2 space-y-2">
+          {task.subtasks.map((st: any, i: number) => renderPreviewTask(st, depth + 1))}
+        </div>
+      )}
+    </div>
+  );
+
+  // Preview Mode
+  if (previewTasks) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={handleRejectPlan}></div>
+        <div className="relative bg-white dark:bg-slate-900 w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in duration-200 max-h-[85vh] flex flex-col">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center text-green-600">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">Review Your Plan</h2>
+                <p className="text-sm text-slate-500">{previewTasks.length} tasks generated. Accept or discard?</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
+            {previewTasks.map((task, i) => renderPreviewTask(task))}
+          </div>
+
+          <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+            <button
+              onClick={handleRejectPlan}
+              className="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+            >
+              Discard
+            </button>
+            <button
+              onClick={handleAcceptPlan}
+              className="flex-1 py-3 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl shadow-lg shadow-green-500/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              Accept Plan ✓
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -98,8 +202,8 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
               type="button"
               onClick={() => setInputMode('text')}
               className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium transition-all ${inputMode === 'text'
-                  ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                 }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -111,8 +215,8 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
               type="button"
               onClick={() => setInputMode('voice')}
               className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium transition-all ${inputMode === 'voice'
-                  ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                ? 'bg-white dark:bg-slate-700 text-purple-600 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                 }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -186,3 +290,4 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
 };
 
 export default AIModal;
+

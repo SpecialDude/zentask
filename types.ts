@@ -43,6 +43,7 @@ export interface Task {
   recurrencePattern?: RecurrencePattern;
   recurrenceEndDate?: string; // ISO String (YYYY-MM-DD)
   recurringParentId?: string; // Original recurring task ID
+  review?: string; // User feedback on completed tasks
   createdAt: number;
   updatedAt: number;
 }

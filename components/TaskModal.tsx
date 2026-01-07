@@ -20,7 +20,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
     status: initialData?.status || TaskStatus.TODO,
     isRecurring: initialData?.isRecurring || false,
     recurrencePattern: initialData?.recurrencePattern || undefined as RecurrencePattern | undefined,
-    recurrenceEndDate: initialData?.recurrenceEndDate || ''
+    recurrenceEndDate: initialData?.recurrenceEndDate || '',
+    review: initialData?.review || ''
   });
 
   const priorityOptions: { value: TaskPriority; label: string; color: string; bgColor: string }[] = [
@@ -144,8 +145,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
                         type="button"
                         onClick={() => setFormData({ ...formData, recurrencePattern: option.value })}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${formData.recurrencePattern === option.value
-                            ? 'bg-primary text-white shadow-lg shadow-primary/30'
-                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                          ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                           }`}
                       >
                         <span>{option.icon}</span>
@@ -188,6 +189,25 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
                     status: val === 100 ? TaskStatus.COMPLETED : val > 0 ? TaskStatus.IN_PROGRESS : TaskStatus.TODO
                   });
                 }}
+              />
+            </div>
+          )}
+
+          {/* Review Section - Only for completed tasks */}
+          {initialData && formData.status === TaskStatus.COMPLETED && (
+            <div className="space-y-1 md:space-y-2 pt-2">
+              <label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-green-600 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Task Review
+              </label>
+              <textarea
+                rows={3}
+                className="w-full bg-green-50 dark:bg-green-900/10 border-2 border-green-200 dark:border-green-900/30 focus:border-green-500 focus:ring-0 rounded-xl px-4 py-3 text-xs md:text-sm transition-all outline-none resize-none"
+                placeholder="How did it go? Add feedback, learnings, or notes..."
+                value={formData.review}
+                onChange={e => setFormData({ ...formData, review: e.target.value })}
               />
             </div>
           )}

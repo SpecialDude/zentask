@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Task, TaskStatus } from '../types';
 
 interface KanbanBoardProps {
@@ -15,6 +15,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [dropAction, setDropAction] = useState<{ task: Task, status: string | TaskStatus } | null>(null);
   const [promptData, setPromptData] = useState({ date: '', reason: '' });
+  const [touchDragging, setTouchDragging] = useState<{ task: Task; x: number; y: number } | null>(null);
+  const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const columns = [
     { id: TaskStatus.TODO, title: 'To Do', color: 'bg-slate-400', isVirtual: false },
@@ -35,12 +37,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const onDrop = (e: React.DragEvent, status: string | TaskStatus) => {
-    e.preventDefault();
-    const taskId = e.dataTransfer.getData('taskId');
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
+  const handleDrop = (task: Task, status: string | TaskStatus) => {
     if (status === 'CARRIED_OVER') {
       if (task.completion >= 100) {
         alert("Completed tasks cannot be carried over.");
@@ -56,6 +53,51 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
     } else {
       onUpdateTask(task.id, { status: status as TaskStatus }, true);
     }
+  };
+
+  const onDrop = (e: React.DragEvent, status: string | TaskStatus) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('taskId');
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    handleDrop(task, status);
+    setActiveTask(null);
+  };
+
+  // Touch event handlers for mobile
+  const onTouchStart = (e: React.TouchEvent, task: Task) => {
+    if (task.carriedOverTo) return;
+    const touch = e.touches[0];
+    setTouchDragging({ task, x: touch.clientX, y: touch.clientY });
+    setActiveTask(task);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!touchDragging) return;
+    const touch = e.touches[0];
+    setTouchDragging({ ...touchDragging, x: touch.clientX, y: touch.clientY });
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!touchDragging) return;
+
+    // Find which column the touch ended over
+    const touch = e.changedTouches[0];
+    let targetStatus: string | TaskStatus | null = null;
+
+    columnRefs.current.forEach((el, colId) => {
+      const rect = el.getBoundingClientRect();
+      if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
+        touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+        targetStatus = colId;
+      }
+    });
+
+    if (targetStatus && targetStatus !== touchDragging.task.status) {
+      handleDrop(touchDragging.task, targetStatus);
+    }
+
+    setTouchDragging(null);
     setActiveTask(null);
   };
 
@@ -79,11 +121,14 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
       key={task.id}
       draggable={isInStatus && !task.carriedOverTo}
       onDragStart={(e) => isInStatus && onDragStart(e, task)}
+      onTouchStart={(e) => isInStatus && onTouchStart(e, task)}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
       className={`relative p-3 rounded-xl shadow-sm border transition-all group ${!isInStatus
         ? 'bg-slate-50/50 dark:bg-slate-900/30 border-dashed border-slate-200 dark:border-slate-800 opacity-60'
         : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:shadow-md cursor-pointer active:scale-95'
-        } ${activeTask?.id === task.id ? 'opacity-40 grayscale' : ''} ${level > 0 ? 'ml-4' : ''}`}
-      onClick={() => isInStatus && onEditTask(task)}
+        } ${activeTask?.id === task.id ? 'opacity-40 grayscale scale-105' : ''} ${level > 0 ? 'ml-4' : ''} ${touchDragging?.task.id === task.id ? 'ring-2 ring-primary' : ''}`}
+      onClick={() => isInStatus && !touchDragging && onEditTask(task)}
     >
       {!isInStatus && (
         <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-2 h-px bg-slate-300 dark:bg-slate-700" />
@@ -161,7 +206,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
         return (
           <div
             key={col.id}
-            className="flex-shrink-0 w-80 flex flex-col"
+            ref={(el) => { if (el) columnRefs.current.set(col.id, el); }}
+            className={`flex-shrink-0 w-80 flex flex-col ${touchDragging ? 'pointer-events-auto' : ''}`}
             onDragOver={onDragOver}
             onDrop={(e) => onDrop(e, col.id)}
           >

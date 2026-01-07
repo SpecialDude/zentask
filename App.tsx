@@ -229,6 +229,9 @@ const App: React.FC = () => {
         date: selectedDate,
         startTime: t.startTime,
         duration: t.duration,
+        priority: t.priority,
+        isRecurring: t.isRecurring || false,
+        recurrencePattern: t.recurrencePattern,
         createdAt: Date.now(),
         updatedAt: Date.now()
       } as Task;
@@ -356,6 +359,8 @@ const App: React.FC = () => {
 
       return syncParents(id, updated);
     });
+
+    showToast('Task updated', 'success');
   };
 
   const deleteTask = async (id: string, deleteAll = false) => {
@@ -495,6 +500,8 @@ const App: React.FC = () => {
       });
       return [...updatedLocal, newTask, ...extraLocalTasks, ...clonedSubtasks];
     });
+
+    showToast(`Task carried over to ${new Date(newDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, 'success');
   };
 
   const handleOpenModal = (task?: Task, parentId: string | null = null) => {
