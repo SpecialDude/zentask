@@ -612,6 +612,7 @@ const App: React.FC = () => {
         {viewingTask && (
           <TaskDetailModal
             task={viewingTask}
+            allTasks={tasks}
             onClose={() => setViewingTask(null)}
             onEdit={() => {
               setViewingTask(null);

@@ -4,11 +4,12 @@ import { formatDuration } from '../utils';
 
 interface TaskDetailModalProps {
     task: Task;
+    allTasks: Task[];
     onClose: () => void;
     onEdit: () => void;
 }
 
-const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose, onEdit }) => {
+const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, allTasks, onClose, onEdit }) => {
     const priorityConfig: Record<TaskPriority, { label: string; color: string; bg: string }> = {
         [TaskPriority.LOW]: { label: 'Low', color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
         [TaskPriority.MEDIUM]: { label: 'Medium', color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
@@ -32,6 +33,10 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose, onEdit
 
     const status = statusConfig[task.status];
     const priority = task.priority ? priorityConfig[task.priority] : null;
+
+    // Calculate parent and subtasks
+    const parentTask = task.parentId ? allTasks.find(t => t.id === task.parentId) : null;
+    const subtasks = allTasks.filter(t => t.parentId === task.id && t.date === task.date);
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -79,6 +84,37 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, onClose, onEdit
                             />
                         </div>
                     </div>
+
+                    {/* Parent Task */}
+                    {parentTask && (
+                        <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-100 dark:border-purple-900/30 space-y-2">
+                            <span className="text-xs font-bold uppercase tracking-widest text-purple-600 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                                </svg>
+                                Part of Parent Task
+                            </span>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{parentTask.title}</p>
+                        </div>
+                    )}
+
+                    {/* Subtasks Count */}
+                    {subtasks.length > 0 && (
+                        <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-900/30 space-y-2">
+                            <span className="text-xs font-bold uppercase tracking-widest text-amber-600 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                                </svg>
+                                Subtasks
+                            </span>
+                            <div className="flex items-center gap-3">
+                                <span className="text-2xl font-black text-amber-600">{subtasks.length}</span>
+                                <span className="text-sm text-slate-600 dark:text-slate-400">
+                                    {subtasks.filter(s => s.status === TaskStatus.COMPLETED).length} completed
+                                </span>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Description */}
                     {task.description && (
