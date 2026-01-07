@@ -36,15 +36,22 @@ const App: React.FC = () => {
   const [parentForSubtask, setParentForSubtask] = useState<string | null>(null);
   const [deleteConfig, setDeleteConfig] = useState<{ id: string, title: string } | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [userName, setUserName] = useState<string>('');
 
   // Auth Handling
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session?.user?.user_metadata?.display_name) {
+        setUserName(session.user.user_metadata.display_name);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user?.user_metadata?.display_name) {
+        setUserName(session.user.user_metadata.display_name);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -548,6 +555,7 @@ const App: React.FC = () => {
           onOpenSidebar={() => setIsSidebarOpen(true)}
           onOpenAI={() => setIsAIModalOpen(true)}
           userEmail={session.user.email}
+          userName={userName}
         />
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
@@ -570,7 +578,12 @@ const App: React.FC = () => {
               onCarryOver={carryOverTask}
             />
           ) : viewType === 'SETTINGS' ? (
-            <Settings tasks={tasks} userEmail={session.user.email || ''} />
+            <Settings
+              tasks={tasks}
+              userEmail={session.user.email || ''}
+              userName={userName}
+              onNameUpdate={(name) => setUserName(name)}
+            />
           ) : (
             <KanbanBoard
               tasks={filteredTasks}

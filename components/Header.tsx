@@ -10,9 +10,10 @@ interface HeaderProps {
   onOpenSidebar: () => void;
   onOpenAI: () => void;
   userEmail?: string;
+  userName?: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTask, onOpenSidebar, onOpenAI, userEmail }) => {
+const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTask, onOpenSidebar, onOpenAI, userEmail, userName }) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const dateObj = new Date(selectedDate);
@@ -38,6 +39,8 @@ const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTas
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
+
+  const displayName = userName || userEmail;
 
   return (
     <>
@@ -98,7 +101,7 @@ const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTas
         <div className="flex items-center space-x-2 md:space-x-4">
           <div className="hidden lg:flex flex-col items-end mr-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Account</span>
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-300 max-w-[120px] truncate">{userEmail}</span>
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-300 max-w-[120px] truncate">{displayName}</span>
           </div>
 
           <button

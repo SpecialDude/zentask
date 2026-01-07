@@ -5,15 +5,43 @@ import { supabase } from '../supabase';
 interface SettingsProps {
     tasks: Task[];
     userEmail: string;
+    userName: string;
+    onNameUpdate: (name: string) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ tasks, userEmail }) => {
-    const [currentPassword, setCurrentPassword] = useState('');
+const Settings: React.FC<SettingsProps> = ({ tasks, userEmail, userName, onNameUpdate }) => {
+    const [displayName, setDisplayName] = useState(userName);
+    const [nameLoading, setNameLoading] = useState(false);
+    const [nameMessage, setNameMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [passwordLoading, setPasswordLoading] = useState(false);
     const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [exportLoading, setExportLoading] = useState(false);
+
+    const handleNameUpdate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setNameMessage(null);
+
+        if (!displayName.trim()) {
+            setNameMessage({ type: 'error', text: 'Name cannot be empty' });
+            return;
+        }
+
+        setNameLoading(true);
+        try {
+            const { error } = await supabase.auth.updateUser({
+                data: { display_name: displayName.trim() }
+            });
+            if (error) throw error;
+            onNameUpdate(displayName.trim());
+            setNameMessage({ type: 'success', text: 'Name updated successfully!' });
+        } catch (err: any) {
+            setNameMessage({ type: 'error', text: err.message || 'Failed to update name' });
+        } finally {
+            setNameLoading(false);
+        }
+    };
 
     const handlePasswordChange = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -34,7 +62,6 @@ const Settings: React.FC<SettingsProps> = ({ tasks, userEmail }) => {
             const { error } = await supabase.auth.updateUser({ password: newPassword });
             if (error) throw error;
             setPasswordMessage({ type: 'success', text: 'Password updated successfully!' });
-            setCurrentPassword('');
             setNewPassword('');
             setConfirmPassword('');
         } catch (err: any) {
@@ -107,10 +134,47 @@ const Settings: React.FC<SettingsProps> = ({ tasks, userEmail }) => {
                     </svg>
                     Account
                 </h2>
+
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 mb-4">
                     <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Email</p>
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{userEmail}</p>
                 </div>
+
+                {nameMessage && (
+                    <div className={`p-3 rounded-xl mb-4 text-sm font-medium ${nameMessage.type === 'success'
+                            ? 'bg-green-50 dark:bg-green-900/20 text-green-600'
+                            : 'bg-red-50 dark:bg-red-900/20 text-red-600'
+                        }`}>
+                        {nameMessage.text}
+                    </div>
+                )}
+
+                <form onSubmit={handleNameUpdate} className="space-y-3">
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+                            Display Name
+                        </label>
+                        <input
+                            type="text"
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                            placeholder="Enter your name"
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={nameLoading || displayName === userName}
+                        className="w-full py-3 bg-primary hover:bg-indigo-700 text-white font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                        {nameLoading ? (
+                            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                        ) : 'Update Name'}
+                    </button>
+                </form>
             </div>
 
             {/* Change Password Section */}
@@ -124,8 +188,8 @@ const Settings: React.FC<SettingsProps> = ({ tasks, userEmail }) => {
 
                 {passwordMessage && (
                     <div className={`p-3 rounded-xl mb-4 text-sm font-medium ${passwordMessage.type === 'success'
-                            ? 'bg-green-50 dark:bg-green-900/20 text-green-600'
-                            : 'bg-red-50 dark:bg-red-900/20 text-red-600'
+                        ? 'bg-green-50 dark:bg-green-900/20 text-green-600'
+                        : 'bg-red-50 dark:bg-red-900/20 text-red-600'
                         }`}>
                         {passwordMessage.text}
                     </div>
