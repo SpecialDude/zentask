@@ -9,6 +9,7 @@ import KanbanBoard from './components/KanbanBoard';
 import TaskModal from './components/TaskModal';
 import TaskDetailModal from './components/TaskDetailModal';
 import AIModal from './components/AIModal';
+import Settings from './components/Settings';
 import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -568,6 +569,8 @@ const App: React.FC = () => {
               onAddSubtask={(parentId) => handleOpenModal(undefined, parentId)}
               onCarryOver={carryOverTask}
             />
+          ) : viewType === 'SETTINGS' ? (
+            <Settings tasks={tasks} userEmail={session.user.email || ''} />
           ) : (
             <KanbanBoard
               tasks={filteredTasks}
