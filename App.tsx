@@ -7,6 +7,7 @@ import Header from './components/Header';
 import ListView from './components/ListView';
 import KanbanBoard from './components/KanbanBoard';
 import TaskModal from './components/TaskModal';
+import TaskDetailModal from './components/TaskDetailModal';
 import AIModal from './components/AIModal';
 import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -33,6 +34,7 @@ const App: React.FC = () => {
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [parentForSubtask, setParentForSubtask] = useState<string | null>(null);
   const [deleteConfig, setDeleteConfig] = useState<{ id: string, title: string } | null>(null);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
 
   // Auth Handling
   useEffect(() => {
@@ -562,6 +564,7 @@ const App: React.FC = () => {
               onUpdateTask={updateTask}
               onDeleteTask={deleteTask}
               onEditTask={(t) => handleOpenModal(t)}
+              onViewTask={(t) => setViewingTask(t)}
               onAddSubtask={(parentId) => handleOpenModal(undefined, parentId)}
               onCarryOver={carryOverTask}
             />
@@ -603,6 +606,17 @@ const App: React.FC = () => {
           <AIModal
             onClose={() => setIsAIModalOpen(false)}
             onPlanGenerated={handleAIPlanGenerated}
+          />
+        )}
+
+        {viewingTask && (
+          <TaskDetailModal
+            task={viewingTask}
+            onClose={() => setViewingTask(null)}
+            onEdit={() => {
+              setViewingTask(null);
+              handleOpenModal(viewingTask);
+            }}
           />
         )}
 

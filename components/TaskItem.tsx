@@ -9,13 +9,14 @@ interface TaskItemProps {
   onUpdateTask: (id: string, updates: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;
   onEditTask: (t: Task) => void;
+  onViewTask: (t: Task) => void;
   onAddSubtask: (parentId: string) => void;
   onCarryOver: (id: string, newDate: string, reason?: string) => void;
   level: number;
 }
 
 const TaskItem: React.FC<TaskItemProps> = ({
-  task, allTasks, onUpdateTask, onDeleteTask, onEditTask, onAddSubtask, onCarryOver, level
+  task, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, level
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [showCancelPrompt, setShowCancelPrompt] = useState(false);
@@ -84,7 +85,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <div className={`flex flex-col ${level > 0 ? 'ml-4 md:ml-8 mt-2 border-l-2 border-slate-100 dark:border-slate-800 pl-4' : ''}`}>
-      <div className={`group relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 md:p-4 transition-all shadow-sm hover:shadow-md ${task.status === TaskStatus.CANCELLED || task.carriedOverTo ? 'opacity-60' : ''}`}>
+      <div
+        onClick={() => onViewTask(task)}
+        className={`group relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 md:p-4 transition-all shadow-sm hover:shadow-md cursor-pointer ${task.status === TaskStatus.CANCELLED || task.carriedOverTo ? 'opacity-60' : ''}`}
+      >
         <div className="flex items-start gap-3 md:gap-4">
           <button
             disabled={!!task.carriedOverTo}
@@ -258,6 +262,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               onUpdateTask={onUpdateTask}
               onDeleteTask={onDeleteTask}
               onEditTask={onEditTask}
+              onViewTask={onViewTask}
               onAddSubtask={onAddSubtask}
               onCarryOver={onCarryOver}
               level={level + 1}

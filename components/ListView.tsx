@@ -9,12 +9,13 @@ interface ListViewProps {
   onUpdateTask: (id: string, updates: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;
   onEditTask: (t: Task) => void;
+  onViewTask: (t: Task) => void;
   onAddSubtask: (parentId: string) => void;
   onCarryOver: (id: string, newDate: string) => void;
 }
 
-const ListView: React.FC<ListViewProps> = ({ 
-  tasks, allTasks, onUpdateTask, onDeleteTask, onEditTask, onAddSubtask, onCarryOver 
+const ListView: React.FC<ListViewProps> = ({
+  tasks, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver
 }) => {
   // Only top-level tasks for this date
   const rootTasks = tasks.filter(t => t.parentId === null);
@@ -34,13 +35,14 @@ const ListView: React.FC<ListViewProps> = ({
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
       {rootTasks.map(task => (
-        <TaskItem 
+        <TaskItem
           key={task.id}
           task={task}
           allTasks={allTasks}
           onUpdateTask={onUpdateTask}
           onDeleteTask={onDeleteTask}
           onEditTask={onEditTask}
+          onViewTask={onViewTask}
           onAddSubtask={onAddSubtask}
           onCarryOver={onCarryOver}
           level={0}
