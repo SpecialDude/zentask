@@ -73,56 +73,72 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
         };
     }, [tasks, selectedDate]);
 
-    // Timeline Data Aggregation
+    // Calculate weighted work score for a set of tasks
+    const calculateWorkScore = (taskList: Task[]): number => {
+        const getPriorityWeight = (p?: TaskPriority): number => {
+            switch (p) {
+                case TaskPriority.URGENT: return 4;
+                case TaskPriority.HIGH: return 3;
+                case TaskPriority.MEDIUM: return 2;
+                case TaskPriority.LOW: return 1;
+                default: return 1;
+            }
+        };
+
+        return taskList.reduce((sum, t) => {
+            const priorityWeight = getPriorityWeight(t.priority);
+            const durationWeight = t.duration ? Math.max(1, t.duration / 30) : 1; // 30 min = 1 unit
+            return sum + (priorityWeight * durationWeight);
+        }, 0);
+    };
+
+    // Timeline Data Aggregation with Dual Metrics
     const timelineData = useMemo(() => {
-        const data: { label: string, value: number }[] = [];
+        const data: { label: string, tasksCompleted: number, workScore: number, totalTasks: number }[] = [];
         const now = new Date();
+
+        const aggregatePeriod = (dateFilter: (task: Task) => boolean, label: string) => {
+            const periodTasks = tasks.filter(t => dateFilter(t) && !t.parentId);
+            const completedTasks = periodTasks.filter(t => t.status === TaskStatus.COMPLETED);
+            data.push({
+                label,
+                tasksCompleted: completedTasks.length,
+                workScore: calculateWorkScore(completedTasks),
+                totalTasks: periodTasks.length
+            });
+        };
 
         if (timelineScale === 'DAY') {
             for (let i = 13; i >= 0; i--) {
                 const d = new Date(now);
                 d.setDate(d.getDate() - i);
                 const ds = d.toISOString().split('T')[0];
-                const dayTasks = tasks.filter(t => t.date === ds && !t.parentId);
-                const done = dayTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
-                const rate = dayTasks.length > 0 ? (done / dayTasks.length) * 100 : 0;
-                data.push({ label: d.toLocaleDateString('en-US', { weekday: 'short' }), value: rate });
+                aggregatePeriod(t => t.date === ds, d.toLocaleDateString('en-US', { weekday: 'short' }));
             }
         } else if (timelineScale === 'WEEK') {
             for (let i = 7; i >= 0; i--) {
                 const d = new Date(now);
                 d.setDate(d.getDate() - i * 7);
-                // Get start and end of week
                 const start = new Date(d); start.setDate(d.getDate() - d.getDay());
                 const end = new Date(start); end.setDate(start.getDate() + 6);
                 const ss = start.toISOString().split('T')[0];
                 const es = end.toISOString().split('T')[0];
-
-                const weekTasks = tasks.filter(t => t.date >= ss && t.date <= es && !t.parentId);
-                const done = weekTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
-                const rate = weekTasks.length > 0 ? (done / weekTasks.length) * 100 : 0;
-                data.push({ label: `${start.getMonth() + 1}/${start.getDate()}`, value: rate });
+                aggregatePeriod(t => t.date >= ss && t.date <= es, `${start.getMonth() + 1}/${start.getDate()}`);
             }
         } else if (timelineScale === 'MONTH') {
             for (let i = 5; i >= 0; i--) {
                 const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
                 const month = d.getMonth();
                 const year = d.getFullYear();
-                const monthTasks = tasks.filter(t => {
+                aggregatePeriod(t => {
                     const td = new Date(t.date);
-                    return td.getMonth() === month && td.getFullYear() === year && !t.parentId;
-                });
-                const done = monthTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
-                const rate = monthTasks.length > 0 ? (done / monthTasks.length) * 100 : 0;
-                data.push({ label: d.toLocaleDateString('en-US', { month: 'short' }), value: rate });
+                    return td.getMonth() === month && td.getFullYear() === year;
+                }, d.toLocaleDateString('en-US', { month: 'short' }));
             }
         } else if (timelineScale === 'YEAR') {
             for (let i = 4; i >= 0; i--) {
                 const year = now.getFullYear() - i;
-                const yearTasks = tasks.filter(t => new Date(t.date).getFullYear() === year && !t.parentId);
-                const done = yearTasks.filter(t => t.status === TaskStatus.COMPLETED).length;
-                const rate = yearTasks.length > 0 ? (done / yearTasks.length) * 100 : 0;
-                data.push({ label: `${year}`, value: rate });
+                aggregatePeriod(t => new Date(t.date).getFullYear() === year, `${year}`);
             }
         }
         return data;
@@ -131,34 +147,17 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
     const TimelineGraph = () => {
         if (timelineData.length === 0) return null;
 
-        const width = 800;
-        const height = 150;
-        const padding = 20;
-        const chartWidth = width - padding * 2;
-        const chartHeight = height - padding * 2;
-
-        const points = timelineData.map((d, i) => {
-            const x = padding + (i / (timelineData.length - 1)) * chartWidth;
-            const y = height - (padding + (d.value / 100) * chartHeight);
-            return { x, y };
-        });
-
-        const pathData = points.reduce((acc, p, i) => {
-            if (i === 0) return `M ${p.x} ${p.y}`;
-            const prev = points[i - 1];
-            const cp1x = prev.x + (p.x - prev.x) / 2;
-            const cp2x = prev.x + (p.x - prev.x) / 2;
-            return `${acc} C ${cp1x} ${prev.y}, ${cp2x} ${p.y}, ${p.x} ${p.y}`;
-        }, "");
-
-        const areaData = `${pathData} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
+        const maxWorkScore = Math.max(...timelineData.map(d => d.workScore), 1);
+        const maxTasks = Math.max(...timelineData.map(d => d.tasksCompleted), 1);
+        const totalWorkScore = timelineData.reduce((sum, d) => sum + d.workScore, 0);
+        const totalTasksCompleted = timelineData.reduce((sum, d) => sum + d.tasksCompleted, 0);
 
         return (
-            <div className="w-full bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden relative group">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+            <div className="w-full bg-white dark:bg-slate-900 rounded-[2rem] p-6 md:p-8 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden relative">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                     <div>
                         <h3 className="text-xl font-black text-slate-800 dark:text-slate-100">Productivity Timeline</h3>
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Activity over time</p>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Work score & tasks completed</p>
                     </div>
                     <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
                         {(['DAY', 'WEEK', 'MONTH', 'YEAR'] as const).map(scale => (
@@ -176,64 +175,82 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
                     </div>
                 </div>
 
-                <div className="relative h-[150px] w-full">
-                    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
-                        <defs>
-                            <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
-                                <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
-                            </linearGradient>
-                        </defs>
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                    <div className="bg-primary/5 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-primary">{Math.round(totalWorkScore)}</p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">Work Score</p>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-green-600">{totalTasksCompleted}</p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">Tasks Done</p>
+                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-slate-700 dark:text-slate-300">
+                            {totalTasksCompleted > 0 ? (totalWorkScore / totalTasksCompleted).toFixed(1) : 0}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">Avg Score/Task</p>
+                    </div>
+                    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-black text-amber-600">
+                            {timelineData.length > 0 ? (totalTasksCompleted / timelineData.length).toFixed(1) : 0}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">Avg Tasks/Period</p>
+                    </div>
+                </div>
 
-                        {[0, 25, 50, 75, 100].map(v => {
-                            const y = height - (padding + (v / 100) * chartHeight);
-                            return (
-                                <line
-                                    key={v}
-                                    x1={padding} y1={y} x2={width - padding} y2={y}
-                                    stroke="currentColor"
-                                    className="text-slate-100 dark:text-slate-800/50"
-                                    strokeWidth="1"
-                                />
-                            );
-                        })}
+                {/* Legend */}
+                <div className="flex items-center gap-4 mb-4">
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded bg-primary"></div>
+                        <span className="text-xs text-slate-500 font-medium">Work Score</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded bg-green-500"></div>
+                        <span className="text-xs text-slate-500 font-medium">Tasks Completed</span>
+                    </div>
+                </div>
 
-                        <path d={areaData} fill="url(#chartGradient)" className="transition-all duration-700 ease-in-out" />
-                        <path
-                            d={pathData}
-                            fill="none"
-                            stroke="#6366f1"
-                            strokeWidth="4"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="transition-all duration-700 ease-in-out drop-shadow-lg"
-                        />
+                {/* Bar Chart */}
+                <div className="flex items-end gap-2 h-[120px]">
+                    {timelineData.map((d, i) => {
+                        const workHeight = maxWorkScore > 0 ? (d.workScore / maxWorkScore) * 100 : 0;
+                        const tasksHeight = maxTasks > 0 ? (d.tasksCompleted / maxTasks) * 80 : 0; // 80% max to show overlay
+                        const completionRate = d.totalTasks > 0 ? Math.round((d.tasksCompleted / d.totalTasks) * 100) : 0;
 
-                        {points.map((p, i) => (
-                            <g key={i} className="group/point cursor-pointer">
-                                <circle
-                                    cx={p.x} cy={p.y} r="5"
-                                    fill="white"
-                                    stroke="#6366f1"
-                                    strokeWidth="2"
-                                    className="dark:fill-slate-900 transition-all hover:r-7"
-                                />
-                                <text
-                                    x={p.x} y={height - 2}
-                                    textAnchor="middle"
-                                    className="text-[10px] fill-slate-400 font-bold"
-                                >
-                                    {timelineData[i].label}
-                                </text>
-                                <g className="opacity-0 group-hover/point:opacity-100 transition-opacity pointer-events-none">
-                                    <rect x={p.x - 20} y={p.y - 30} width="40" height="20" rx="4" className="fill-slate-900 dark:fill-white" />
-                                    <text x={p.x} y={p.y - 17} textAnchor="middle" className="text-[10px] font-black fill-white dark:fill-slate-900">
-                                        {Math.round(timelineData[i].value)}%
-                                    </text>
-                                </g>
-                            </g>
-                        ))}
-                    </svg>
+                        return (
+                            <div key={i} className="flex-1 flex flex-col items-center group cursor-pointer">
+                                <div className="relative w-full h-[100px] flex items-end justify-center gap-0.5">
+                                    {/* Work Score Bar (primary) */}
+                                    <div
+                                        className="w-1/2 bg-primary/80 rounded-t transition-all group-hover:bg-primary"
+                                        style={{ height: `${workHeight}%` }}
+                                        title={`Work Score: ${d.workScore.toFixed(1)}`}
+                                    />
+                                    {/* Tasks Completed Bar (secondary) */}
+                                    <div
+                                        className="w-1/2 bg-green-500/80 rounded-t transition-all group-hover:bg-green-500"
+                                        style={{ height: `${tasksHeight}%` }}
+                                        title={`Tasks: ${d.tasksCompleted}`}
+                                    />
+
+                                    {/* Hover Tooltip */}
+                                    <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-bold px-2 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                                        <div className="text-center">
+                                            <span className="text-primary">{d.workScore.toFixed(1)}</span> score
+                                            <span className="mx-1">•</span>
+                                            <span className="text-green-400">{d.tasksCompleted}</span> tasks
+                                            <span className="mx-1">•</span>
+                                            <span className="text-amber-400">{completionRate}%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span className="text-[9px] text-slate-400 font-bold mt-1 truncate w-full text-center">
+                                    {d.label}
+                                </span>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         );
