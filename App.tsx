@@ -520,6 +520,34 @@ const App: React.FC = () => {
       return [...updatedLocal, newTask, ...extraLocalTasks, ...clonedSubtasks];
     });
 
+    // Auto-complete parent if all remaining subtasks are done or carried over
+    if (original.parentId) {
+      const allSiblings = tasks.filter(t => t.parentId === original.parentId && t.date === original.date && t.id !== id);
+      const allSiblingsDoneOrCarried = allSiblings.every(s =>
+        s.status === TaskStatus.COMPLETED || s.carriedOverTo
+      );
+
+      if (allSiblingsDoneOrCarried) {
+        const parent = tasks.find(t => t.id === original.parentId);
+        if (parent && parent.status !== TaskStatus.COMPLETED) {
+          // Auto-complete the parent
+          await supabase.from('tasks').update({
+            status: TaskStatus.COMPLETED,
+            completion: 100,
+            updatedAt: Date.now()
+          }).eq('id', parent.id);
+
+          setTasks(prev => prev.map(t =>
+            t.id === parent.id
+              ? { ...t, status: TaskStatus.COMPLETED, completion: 100, updatedAt: Date.now() }
+              : t
+          ));
+
+          showToast(`Parent task "${parent.title}" auto-completed`, 'info');
+        }
+      }
+    }
+
     showToast(`Task carried over to ${new Date(newDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, 'success');
   };
 
