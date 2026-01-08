@@ -175,7 +175,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             </div>
           </div>
 
-          <div className="flex md:flex-row flex-col items-center gap-1 md:space-x-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+          <div className={`flex md:flex-row flex-col items-center gap-1 md:space-x-1 transition-opacity ${showCarryPrompt || showCancelPrompt ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}>
             {!task.carriedOverTo && (
               <>
                 <button onClick={(e) => { e.stopPropagation(); onAddSubtask(task.id); }} className="p-1.5 md:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-primary transition-colors" title="Add Subtask">
