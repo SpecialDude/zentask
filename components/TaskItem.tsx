@@ -196,7 +196,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
                   </button>
                   {showCancelPrompt && (
-                    <div className="absolute right-0 top-full mt-2 w-56 md:w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 shadow-2xl z-50">
+                    <div onClick={(e) => e.stopPropagation()} className="absolute right-0 top-full mt-2 w-56 md:w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 shadow-2xl z-50">
                       <p className="text-xs font-semibold mb-2">Cancel reason?</p>
                       <textarea
                         autoFocus
@@ -217,7 +217,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                     </button>
                     {showCarryPrompt && (
-                      <div className="absolute right-0 top-full mt-2 w-64 md:w-72 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-2xl z-50 space-y-3">
+                      <div onClick={(e) => e.stopPropagation()} className="absolute right-0 top-full mt-2 w-64 md:w-72 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-2xl z-50 space-y-3">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Carry Over To</p>
                         <div className="flex flex-wrap gap-1.5">
                           <button onClick={() => setQuickDate(1)} className="text-[9px] px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-primary hover:text-white transition-all">Tomorrow</button>
