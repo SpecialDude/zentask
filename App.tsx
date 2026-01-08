@@ -35,6 +35,7 @@ const App: React.FC = () => {
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [parentForSubtask, setParentForSubtask] = useState<string | null>(null);
   const [deleteConfig, setDeleteConfig] = useState<{ id: string, title: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string, title: string, deleteAll: boolean } | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [userName, setUserName] = useState<string>('');
 
@@ -373,16 +374,23 @@ const App: React.FC = () => {
     showToast('Task updated', 'success');
   };
 
-  const deleteTask = async (id: string, deleteAll = false) => {
+  const deleteTask = async (id: string, deleteAll = false, confirmed = false) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
     // Series logic: sharing same recurringParentId OR being the root
     const seriesId = task.recurringParentId || task.id;
 
-    // If it's a recurring task and we haven't confirmed "deleteAll", show prompt
-    if (!deleteAll && (task.isRecurring || task.recurringParentId)) {
+    // If it's a recurring task and we haven't chosen delete mode, show choice prompt
+    if (!confirmed && (task.isRecurring || task.recurringParentId) && !pendingDelete) {
       setDeleteConfig({ id, title: task.title });
+      return;
+    }
+
+    // If not confirmed and no pendingDelete state, show confirmation
+    if (!confirmed) {
+      setPendingDelete({ id, title: task.title, deleteAll });
+      setDeleteConfig(null);
       return;
     }
 
@@ -424,6 +432,7 @@ const App: React.FC = () => {
     });
 
     setDeleteConfig(null);
+    setPendingDelete(null);
     showToast(deleteAll ? 'Entire series deleted' : 'Task deleted', 'success');
   };
 
@@ -676,6 +685,44 @@ const App: React.FC = () => {
                   className="w-full py-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold transition-colors"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Final Delete Confirmation Modal */}
+        {pendingDelete && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-sm p-6 border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
+              <div className="flex items-start space-x-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-red-100 dark:bg-red-900/30 text-red-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Confirm Deletion</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    Are you sure you want to delete "<span className="font-semibold text-slate-700 dark:text-slate-200">{pendingDelete.title}</span>"
+                    {pendingDelete.deleteAll && <span className="text-red-500 font-medium"> and all its recurring instances</span>}?
+                    This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-6">
+                <button
+                  onClick={() => setPendingDelete(null)}
+                  className="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteTask(pendingDelete.id, pendingDelete.deleteAll, true)}
+                  className="flex-1 py-3 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-500/20 hover:scale-105 active:scale-95 transition-all"
+                >
+                  Delete
                 </button>
               </div>
             </div>
