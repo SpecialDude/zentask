@@ -12,12 +12,13 @@ interface ListViewProps {
   onViewTask: (t: Task) => void;
   onAddSubtask: (parentId: string) => void;
   onCarryOver: (id: string, newDate: string) => void;
+  onExtendSeries: (t: Task) => void;
 }
 
 type SortMode = 'SMART' | 'PRIORITY' | 'TIME' | 'STATUS';
 
 const ListView: React.FC<ListViewProps> = ({
-  tasks, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver
+  tasks, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries
 }) => {
   const [sortMode, setSortMode] = useState<SortMode>('SMART');
   const [hideCompleted, setHideCompleted] = useState(false);
@@ -130,8 +131,8 @@ const ListView: React.FC<ListViewProps> = ({
                 key={opt.value}
                 onClick={() => setSortMode(opt.value)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${sortMode === opt.value
-                    ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  ? 'bg-white dark:bg-slate-700 text-primary shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                   }`}
               >
                 <span>{opt.icon}</span>
@@ -144,8 +145,8 @@ const ListView: React.FC<ListViewProps> = ({
         <button
           onClick={() => setHideCompleted(!hideCompleted)}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${hideCompleted
-              ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
-              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
+            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -184,6 +185,7 @@ const ListView: React.FC<ListViewProps> = ({
             onViewTask={onViewTask}
             onAddSubtask={onAddSubtask}
             onCarryOver={onCarryOver}
+            onExtendSeries={onExtendSeries}
             level={0}
           />
         ))

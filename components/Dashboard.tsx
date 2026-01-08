@@ -6,11 +6,12 @@ interface DashboardProps {
     selectedDate: string;
     onTaskClick: (task: Task) => void;
     onGoToDate: (date: string) => void;
+    onExtendSeries?: (task: Task) => void;
 }
 
 type TimelineScale = 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
 
-const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick, onGoToDate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick, onGoToDate, onExtendSeries }) => {
     const [timelineScale, setTimelineScale] = React.useState<TimelineScale>('DAY');
 
     const stats = useMemo(() => {
@@ -61,6 +62,37 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
                 !t.carriedOverTo;
         }).sort((a, b) => b.date.localeCompare(a.date));
 
+        // 5. Recurring tasks ending soon (within 3 days)
+        const endingSoon: { task: Task, daysLeft: number, lastDate: string }[] = [];
+        const processedSeries = new Set<string>();
+
+        tasks.filter(t => t.isRecurring || t.recurringParentId).forEach(t => {
+            const parentId = t.recurringParentId || t.id;
+            if (processedSeries.has(parentId)) return;
+            processedSeries.add(parentId);
+
+            const seriesInstances = tasks.filter(st =>
+                (st.id === parentId || st.recurringParentId === parentId) && !st.carriedOverTo
+            );
+            if (seriesInstances.length === 0) return;
+
+            const lastDate = seriesInstances.reduce((latest, st) =>
+                st.date > latest ? st.date : latest, ''
+            );
+
+            const lastDateObj = new Date(lastDate);
+            const diffTime = lastDateObj.getTime() - todayObj.getTime();
+            const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            // Show if ending within 3 days (including today and past)
+            if (daysLeft <= 3) {
+                const templateTask = tasks.find(st => st.id === parentId) || t;
+                endingSoon.push({ task: templateTask, daysLeft, lastDate });
+            }
+        });
+
+        endingSoon.sort((a, b) => a.daysLeft - b.daysLeft);
+
         return {
             completionRate: selectedCompletionRate,
             completed: selectedCompleted,
@@ -69,7 +101,8 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
             streak,
             pending,
             upcoming,
-            lost
+            lost,
+            endingSoon
         };
     }, [tasks, selectedDate]);
 
@@ -497,16 +530,67 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
                                         </button>
                                     </div>
                                 ))
-                            ) : (
+                            ) : stats.endingSoon.length === 0 ? (
                                 <div className="text-center py-6">
-                                    <p className="text-slate-400 text-xs font-medium">No lost tasks. You're efficient! 🏆</p>
+                                    <p className="text-slate-400 text-xs font-medium">No issues. You're efficient! 🏆</p>
                                 </div>
-                            )}
+                            ) : null}
 
                             {stats.lost.length > 5 && (
                                 <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest pt-2">
                                     + {stats.lost.length - 5} more missed tasks
                                 </p>
+                            )}
+
+                            {/* Recurring Tasks Ending Soon */}
+                            {stats.endingSoon.length > 0 && (
+                                <div className="mt-4 pt-4 border-t border-red-100 dark:border-red-900/20">
+                                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3 flex items-center gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" clipRule="evenodd" />
+                                        </svg>
+                                        Recurring Series Ending
+                                    </p>
+                                    {stats.endingSoon.map(({ task, daysLeft, lastDate }) => (
+                                        <div
+                                            key={task.id}
+                                            className="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-900/20 mb-3"
+                                        >
+                                            <div className="flex justify-between items-start mb-1">
+                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${daysLeft <= 0
+                                                        ? 'text-red-500 bg-red-50 dark:bg-red-500/10'
+                                                        : daysLeft === 1
+                                                            ? 'text-orange-500 bg-orange-50 dark:bg-orange-500/10'
+                                                            : 'text-amber-500 bg-amber-50 dark:bg-amber-500/10'
+                                                    }`}>
+                                                    {daysLeft <= 0 ? 'Ends today' : daysLeft === 1 ? 'Ends tomorrow' : `Ends in ${daysLeft} days`}
+                                                </span>
+                                                <span className="text-[10px] font-medium text-slate-400">
+                                                    {task.recurrencePattern?.toLowerCase()}
+                                                </span>
+                                            </div>
+                                            <h5 className="font-bold text-slate-800 dark:text-slate-100 truncate">
+                                                {task.title}
+                                            </h5>
+                                            <div className="flex gap-2 mt-2">
+                                                {onExtendSeries && (
+                                                    <button
+                                                        onClick={() => onExtendSeries(task)}
+                                                        className="text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
+                                                    >
+                                                        Extend Series
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => onGoToDate(lastDate)}
+                                                    className="text-[10px] font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-3 py-1.5 rounded-lg transition-colors"
+                                                >
+                                                    View Last →
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </div>
                     </section>

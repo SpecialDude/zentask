@@ -10,6 +10,7 @@ import TaskModal from './components/TaskModal';
 import TaskDetailModal from './components/TaskDetailModal';
 import AIModal from './components/AIModal';
 import Settings from './components/Settings';
+import ExtendRecurringModal from './components/ExtendRecurringModal';
 import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -37,6 +38,7 @@ const App: React.FC = () => {
   const [deleteConfig, setDeleteConfig] = useState<{ id: string, title: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string, title: string, deleteAll: boolean } | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [extendingTask, setExtendingTask] = useState<Task | null>(null);
   const [userName, setUserName] = useState<string>('');
 
   // Auth Handling
@@ -551,6 +553,148 @@ const App: React.FC = () => {
     showToast(`Task carried over to ${new Date(newDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, 'success');
   };
 
+  // Extend a recurring series by generating more instances
+  const extendRecurringSeries = async (taskId: string, additionalOccurrences: number) => {
+    if (!session?.user?.id) return;
+
+    // Find the task and its recurring parent (template)
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const parentId = task.recurringParentId || task.id;
+    const templateTask = tasks.find(t => t.id === parentId);
+    if (!templateTask) return;
+
+    // Find the current last instance in the series
+    const seriesInstances = tasks.filter(t =>
+      t.id === parentId || t.recurringParentId === parentId
+    );
+    const lastInstance = seriesInstances.reduce((latest, t) =>
+      t.date > latest.date ? t : latest
+    );
+
+    // Generate new instances starting from the day after the last one
+    const pattern = templateTask.recurrencePattern;
+    if (!pattern) return;
+
+    const newInstances: Task[] = [];
+    let currentDate = new Date(lastInstance.date);
+    let addedCount = 0;
+
+    // Get subtree from the template date
+    const getSubtree = (pId: string, date: string): Task[] => {
+      const children = tasks.filter(t => t.parentId === pId && t.date === date);
+      let subtree = [...children];
+      children.forEach(child => {
+        subtree = [...subtree, ...getSubtree(child.id, date)];
+      });
+      return subtree;
+    };
+    const templateSubtree = getSubtree(templateTask.id, templateTask.date);
+
+    while (addedCount < additionalOccurrences) {
+      currentDate.setDate(currentDate.getDate() + 1);
+      let shouldAdd = false;
+
+      if (pattern === RecurrencePattern.DAILY) shouldAdd = true;
+      else if (pattern === RecurrencePattern.WEEKLY) {
+        const templateDay = new Date(templateTask.date).getDay();
+        if (currentDate.getDay() === templateDay) shouldAdd = true;
+      } else if (pattern === RecurrencePattern.WEEKDAYS) {
+        const day = currentDate.getDay();
+        if (day !== 0 && day !== 6) shouldAdd = true;
+      } else if (pattern === RecurrencePattern.MONTHLY) {
+        const templateDate = new Date(templateTask.date).getDate();
+        if (currentDate.getDate() === templateDate) shouldAdd = true;
+      }
+
+      if (shouldAdd) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const newRootId = generateId();
+
+        // Clone the root task for this date (from template)
+        newInstances.push({
+          ...templateTask,
+          id: newRootId,
+          user_id: session.user.id,
+          date: dateStr,
+          status: TaskStatus.TODO,
+          completion: 0,
+          recurringParentId: templateTask.id,
+          isRecurring: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        } as Task);
+
+        // Clone subtree
+        const idMap: Record<string, string> = { [templateTask.id]: newRootId };
+        templateSubtree.forEach(st => {
+          const newStId = generateId();
+          idMap[st.id] = newStId;
+          newInstances.push({
+            ...st,
+            id: newStId,
+            user_id: session.user.id,
+            parentId: idMap[st.parentId!] || null,
+            date: dateStr,
+            status: TaskStatus.TODO,
+            completion: 0,
+            recurringParentId: st.id,
+            isRecurring: true,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          } as Task);
+        });
+
+        addedCount++;
+      }
+
+      // Safety break
+      if (currentDate.getFullYear() > new Date().getFullYear() + 2) break;
+    }
+
+    if (newInstances.length > 0) {
+      const { error } = await supabase.from('tasks').insert(newInstances);
+      if (error) {
+        console.error('Error extending recurring series:', error);
+        showToast('Failed to extend recurring series', 'error');
+        return;
+      }
+
+      setTasks(prev => [...prev, ...newInstances]);
+      showToast(`Extended series by ${addedCount} occurrences`, 'success');
+    }
+  };
+
+  // End a recurring series (mark as ended, no more instances)
+  const endRecurringSeries = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const parentId = task.recurringParentId || task.id;
+    const today = getTodayStr();
+
+    // Update the template task to end today
+    const { error } = await supabase.from('tasks').update({
+      recurrenceEndDate: today,
+      updatedAt: Date.now()
+    }).eq('id', parentId);
+
+    if (error) {
+      console.error('Error ending recurring series:', error);
+      showToast('Failed to end recurring series', 'error');
+      return;
+    }
+
+    setTasks(prev => prev.map(t =>
+      t.id === parentId
+        ? { ...t, recurrenceEndDate: today, updatedAt: Date.now() }
+        : t
+    ));
+
+    showToast('Recurring series ended', 'success');
+  };
+
   const handleOpenModal = (task?: Task, parentId: string | null = null) => {
     setEditingTask(task);
     setParentForSubtask(parentId);
@@ -602,6 +746,7 @@ const App: React.FC = () => {
               selectedDate={selectedDate}
               onTaskClick={(t) => { setSelectedDate(t.date); setViewType('LIST'); }}
               onGoToDate={(d) => { setSelectedDate(d); setViewType('LIST'); }}
+              onExtendSeries={(t) => setExtendingTask(t)}
             />
           ) : viewType === 'LIST' ? (
             <ListView
@@ -613,6 +758,7 @@ const App: React.FC = () => {
               onViewTask={(t) => setViewingTask(t)}
               onAddSubtask={(parentId) => handleOpenModal(undefined, parentId)}
               onCarryOver={carryOverTask}
+              onExtendSeries={(t) => setExtendingTask(t)}
             />
           ) : viewType === 'SETTINGS' ? (
             <Settings
@@ -671,6 +817,16 @@ const App: React.FC = () => {
               setViewingTask(null);
               handleOpenModal(viewingTask);
             }}
+          />
+        )}
+
+        {/* Extend Recurring Modal */}
+        {extendingTask && (
+          <ExtendRecurringModal
+            taskTitle={extendingTask.title}
+            onClose={() => setExtendingTask(null)}
+            onExtend={(count) => extendRecurringSeries(extendingTask.id, count)}
+            onEnd={() => endRecurringSeries(extendingTask.id)}
           />
         )}
 
