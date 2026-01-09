@@ -27,7 +27,36 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
-  const [viewType, setViewType] = useState<ViewType>('LIST');
+
+  // URL hash-based routing helper
+  const getViewFromHash = (): ViewType => {
+    const hash = window.location.hash.slice(1).toLowerCase(); // Remove # and lowercase
+    const viewMap: Record<string, ViewType> = {
+      'dashboard': 'DASHBOARD',
+      'kanban': 'KANBAN',
+      'lists': 'LISTS',
+      'settings': 'SETTINGS',
+      '': 'LIST', // default
+      'list': 'LIST',
+      'tasks': 'LIST'
+    };
+    return viewMap[hash] || 'LIST';
+  };
+
+  const [viewType, setViewTypeState] = useState<ViewType>(getViewFromHash);
+
+  // Custom setViewType that also updates URL hash
+  const setViewType = useCallback((newView: ViewType) => {
+    setViewTypeState(newView);
+    const hashMap: Record<ViewType, string> = {
+      'DASHBOARD': 'dashboard',
+      'KANBAN': 'kanban',
+      'LISTS': 'lists',
+      'SETTINGS': 'settings',
+      'LIST': 'tasks'
+    };
+    window.location.hash = hashMap[newView];
+  }, []);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     return localStorage.getItem('theme') === 'dark' ||
@@ -83,6 +112,15 @@ const App: React.FC = () => {
       }
       lastScrollY.current = currentScrollY;
     }
+  }, []);
+
+  // Listen for browser back/forward navigation
+  useEffect(() => {
+    const handleHashChange = () => {
+      setViewTypeState(getViewFromHash());
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
   // Fetch Tasks from Supabase
