@@ -106,13 +106,12 @@ const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTas
 
           <button
             onClick={onOpenAI}
-            className="flex items-center space-x-1 md:space-x-2 bg-gradient-to-r from-purple-600 to-primary hover:from-purple-700 hover:to-indigo-700 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-xl font-semibold shadow-lg shadow-purple-500/20 transition-all active:scale-95 text-xs md:text-sm"
+            className="hidden md:flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-primary hover:from-purple-700 hover:to-indigo-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-purple-500/20 transition-all active:scale-95 text-sm"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-5 md:w-5" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
             </svg>
-            <span className="hidden sm:inline">AI Plan</span>
-            <span className="sm:hidden">AI</span>
+            <span>AI Plan</span>
           </button>
 
           <button
