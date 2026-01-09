@@ -235,29 +235,29 @@ const ListCard: React.FC<ListCardProps> = ({ list, onSave, onDelete, onTogglePin
                     {/* Controls */}
                     <div className="flex items-center gap-1">
                         {/* Type Toggle */}
-                        <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5">
+                        <div className="flex bg-slate-100 dark:bg-slate-700 rounded-xl p-1 gap-0.5">
                             <button
                                 onClick={() => setType('bullet')}
-                                className={`p-1 rounded text-xs transition-all ${type === 'bullet' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400'}`}
-                                title="Bullet"
+                                className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all ${type === 'bullet' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                title="Bullet List"
                             >
-                                •
+                                <span className="text-lg leading-none">•</span>
                             </button>
                             <button
                                 onClick={() => setType('checkbox')}
-                                className={`p-1 rounded transition-all ${type === 'checkbox' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400'}`}
-                                title="Checkbox"
+                                className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all ${type === 'checkbox' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                title="Checklist"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                 </svg>
                             </button>
                             <button
                                 onClick={() => setType('numbered')}
-                                className={`p-1 rounded text-xs font-mono transition-all ${type === 'numbered' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400'}`}
-                                title="Numbered"
+                                className={`flex items-center justify-center w-7 h-7 rounded-lg transition-all ${type === 'numbered' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                title="Numbered List"
                             >
-                                1.
+                                <span className="text-xs font-bold">123</span>
                             </button>
                         </div>
 
