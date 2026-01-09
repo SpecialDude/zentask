@@ -83,7 +83,7 @@ const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTas
 
           {/* Today Label */}
           {isToday && (
-            <span className="hidden sm:inline-flex items-center px-2.5 py-1 text-xs font-bold text-primary bg-primary/10 rounded-lg">
+            <span className="inline-flex items-center px-2 py-0.5 text-[10px] sm:text-xs font-bold text-primary bg-primary/10 rounded-lg">
               Today
             </span>
           )}
@@ -91,17 +91,17 @@ const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTas
           {!isToday && (
             <button
               onClick={() => setSelectedDate(today)}
-              className="hidden sm:inline-flex items-center px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+              className="inline-flex items-center px-2 py-0.5 text-[10px] sm:text-xs font-medium text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
             >
-              Go to Today
+              <span className="hidden sm:inline">Go to </span>Today
             </button>
           )}
         </div>
 
         <div className="flex items-center space-x-2 md:space-x-4">
-          <div className="hidden lg:flex flex-col items-end mr-2">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Account</span>
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-300 max-w-[120px] truncate">{displayName}</span>
+          <div className="flex flex-col items-end mr-1 sm:mr-2">
+            <span className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Account</span>
+            <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-300 max-w-[80px] sm:max-w-[120px] truncate">{displayName}</span>
           </div>
 
           <button
