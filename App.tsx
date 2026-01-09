@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Task, TaskStatus, ViewType, RecurrencePattern } from './types';
 import { generateId, getTodayStr, getStatusFromProgress } from './utils';
 import Sidebar from './components/Sidebar';
@@ -40,6 +40,8 @@ const App: React.FC = () => {
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [extendingTask, setExtendingTask] = useState<Task | null>(null);
   const [isFabOpen, setIsFabOpen] = useState(false);
+  const [isFabVisible, setIsFabVisible] = useState(true);
+  const lastScrollY = useRef(0);
   const [userName, setUserName] = useState<string>('');
 
   // Auth Handling
@@ -59,6 +61,24 @@ const App: React.FC = () => {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // FAB scroll visibility handler
+  const handleContentScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const currentScrollY = e.currentTarget.scrollTop;
+    const scrollDiff = currentScrollY - lastScrollY.current;
+
+    // Only trigger if scrolled more than 10px to prevent flickering
+    if (Math.abs(scrollDiff) > 10) {
+      if (scrollDiff > 0 && currentScrollY > 100) {
+        // Scrolling down
+        setIsFabVisible(false);
+      } else {
+        // Scrolling up
+        setIsFabVisible(true);
+      }
+      lastScrollY.current = currentScrollY;
+    }
   }, []);
 
   // Fetch Tasks from Supabase
@@ -740,7 +760,7 @@ const App: React.FC = () => {
           userName={userName}
         />
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
+        <div onScroll={handleContentScroll} className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">
           {viewType === 'DASHBOARD' ? (
             <Dashboard
               tasks={tasks}
@@ -819,7 +839,7 @@ const App: React.FC = () => {
           {/* Main FAB Button */}
           <button
             onClick={() => setIsFabOpen(!isFabOpen)}
-            className={`w-14 h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-all duration-200 ${isFabOpen ? 'rotate-45' : ''}`}
+            className={`w-14 h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-all duration-300 ${isFabOpen ? 'rotate-45' : ''} ${!isFabVisible && !isFabOpen ? 'translate-y-24 opacity-0' : 'translate-y-0 opacity-100'}`}
             aria-label="Actions"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" viewBox="0 0 20 20" fill="currentColor">
