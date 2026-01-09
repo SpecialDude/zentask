@@ -2,15 +2,21 @@ import React, { createContext, useContext, useState, useCallback, useRef, useEff
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
+interface ToastAction {
+    label: string;
+    onClick: () => void;
+}
+
 interface Toast {
     id: string;
     message: string;
     type: ToastType;
     duration?: number;
+    action?: ToastAction;
 }
 
 interface ToastContextType {
-    showToast: (message: string, type?: ToastType, duration?: number) => void;
+    showToast: (message: string, type?: ToastType, duration?: number, action?: ToastAction) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -27,9 +33,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [toasts, setToasts] = useState<Toast[]>([]);
     const toastIdRef = useRef(0);
 
-    const showToast = useCallback((message: string, type: ToastType = 'info', duration: number = 3000) => {
+    const showToast = useCallback((message: string, type: ToastType = 'info', duration: number = 3000, action?: ToastAction) => {
         const id = `toast-${toastIdRef.current++}`;
-        const newToast: Toast = { id, message, type, duration };
+        const newToast: Toast = { id, message, type, duration, action };
 
         setToasts(prev => [...prev, newToast]);
 
@@ -48,9 +54,16 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         <ToastContext.Provider value={{ showToast }}>
             {children}
 
-            {/* Toast Container */}
+            {/* Action Toasts Container (Top Right) */}
+            <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+                {toasts.filter(t => t.action).map(toast => (
+                    <ToastItem key={toast.id} toast={toast} onDismiss={() => removeToast(toast.id)} />
+                ))}
+            </div>
+
+            {/* Regular Toasts Container (Bottom Right) */}
             <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
-                {toasts.map(toast => (
+                {toasts.filter(t => !t.action).map(toast => (
                     <ToastItem key={toast.id} toast={toast} onDismiss={() => removeToast(toast.id)} />
                 ))}
             </div>
@@ -124,6 +137,14 @@ const ToastItem: React.FC<{ toast: Toast; onDismiss: () => void }> = ({ toast, o
         >
             {styles.icon}
             <span className="flex-1 text-sm font-medium">{toast.message}</span>
+            {toast.action && (
+                <button
+                    onClick={() => { toast.action?.onClick(); handleDismiss(); }}
+                    className="text-xs font-bold underline underline-offset-2 hover:no-underline transition-all"
+                >
+                    {toast.action.label}
+                </button>
+            )}
             <button
                 onClick={handleDismiss}
                 className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-colors"

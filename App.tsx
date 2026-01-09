@@ -11,6 +11,7 @@ import TaskDetailModal from './components/TaskDetailModal';
 import AIModal from './components/AIModal';
 import Settings from './components/Settings';
 import ExtendRecurringModal from './components/ExtendRecurringModal';
+import TaskReviewModal from './components/TaskReviewModal';
 import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -42,6 +43,7 @@ const App: React.FC = () => {
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isFabVisible, setIsFabVisible] = useState(true);
   const lastScrollY = useRef(0);
+  const [reviewingTask, setReviewingTask] = useState<Task | null>(null);
   const [userName, setUserName] = useState<string>('');
 
   // Auth Handling
@@ -394,7 +396,26 @@ const App: React.FC = () => {
       return syncParents(id, updated);
     });
 
-    showToast('Task updated', 'success');
+    // Show action toast for completed tasks to prompt review
+    const wasNotCompleted = originalTask.status !== TaskStatus.COMPLETED;
+    const isNowCompleted = finalUpdates.status === TaskStatus.COMPLETED ||
+      (finalUpdates.completion !== undefined && finalUpdates.completion >= 100);
+
+    if (wasNotCompleted && isNowCompleted) {
+      // Get the updated task to pass to review modal
+      const completedTask = { ...originalTask, ...finalUpdates, updatedAt: Date.now() };
+      showToast(
+        `"${originalTask.title}" completed! ✅`,
+        'success',
+        5000,
+        {
+          label: 'Add Review →',
+          onClick: () => setReviewingTask(completedTask)
+        }
+      );
+    } else {
+      showToast('Task updated', 'success');
+    }
   };
 
   const deleteTask = async (id: string, deleteAll = false, confirmed = false) => {
@@ -896,6 +917,18 @@ const App: React.FC = () => {
             onClose={() => setExtendingTask(null)}
             onExtend={(count) => extendRecurringSeries(extendingTask.id, count)}
             onEnd={() => endRecurringSeries(extendingTask.id)}
+          />
+        )}
+
+        {/* Task Review Modal */}
+        {reviewingTask && (
+          <TaskReviewModal
+            task={reviewingTask}
+            onClose={() => setReviewingTask(null)}
+            onSave={(reviewText) => {
+              updateTask(reviewingTask.id, { review: reviewText });
+              setReviewingTask(null);
+            }}
           />
         )}
 
