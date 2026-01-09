@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Task, TaskStatus, TaskPriority, RecurrencePattern } from '../types';
+import { scrollInputIntoView } from '../utils';
 
 interface TaskModalProps {
   onClose: () => void;
@@ -66,6 +67,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
               placeholder="What needs to be done?"
               value={formData.title}
               onChange={e => setFormData({ ...formData, title: e.target.value })}
+              onFocus={scrollInputIntoView}
             />
           </div>
 
@@ -77,6 +79,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
               placeholder="Add more details..."
               value={formData.description}
               onChange={e => setFormData({ ...formData, description: e.target.value })}
+              onFocus={scrollInputIntoView}
             />
           </div>
 
@@ -88,6 +91,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
                 className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-2 text-xs md:text-sm transition-all outline-none"
                 value={formData.startTime}
                 onChange={e => setFormData({ ...formData, startTime: e.target.value })}
+                onFocus={scrollInputIntoView}
               />
             </div>
             <div className="space-y-1 md:space-y-2">
@@ -98,6 +102,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
                 className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-2 text-xs md:text-sm transition-all outline-none"
                 value={formData.duration}
                 onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value) || 0 })}
+                onFocus={scrollInputIntoView}
               />
             </div>
           </div>
@@ -208,6 +213,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
                 placeholder="How did it go? Add feedback, learnings, or notes..."
                 value={formData.review}
                 onChange={e => setFormData({ ...formData, review: e.target.value })}
+                onFocus={scrollInputIntoView}
               />
             </div>
           )}

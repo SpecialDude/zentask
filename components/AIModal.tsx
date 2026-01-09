@@ -2,6 +2,7 @@
 import React, { useState, useCallback } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { TaskStatus, TaskPriority, RecurrencePattern } from '../types';
+import { scrollInputIntoView } from '../utils';
 import VoiceRecorder from './VoiceRecorder';
 
 interface AIModalProps {
@@ -243,6 +244,7 @@ If you see a sequence, nest them appropriately. If a time is mentioned, include 
             }
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onFocus={scrollInputIntoView}
             disabled={loading}
           />
 

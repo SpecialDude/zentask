@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Task, TaskStatus, ViewType, RecurrencePattern } from './types';
+import { Task, TaskStatus, ViewType, RecurrencePattern, QuickList } from './types';
 import { generateId, getTodayStr, getStatusFromProgress } from './utils';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -12,6 +12,7 @@ import AIModal from './components/AIModal';
 import Settings from './components/Settings';
 import ExtendRecurringModal from './components/ExtendRecurringModal';
 import TaskReviewModal from './components/TaskReviewModal';
+import QuickListsPage from './components/QuickListsPage';
 import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -44,6 +45,7 @@ const App: React.FC = () => {
   const [isFabVisible, setIsFabVisible] = useState(true);
   const lastScrollY = useRef(0);
   const [reviewingTask, setReviewingTask] = useState<Task | null>(null);
+  const [quickLists, setQuickLists] = useState<QuickList[]>([]);
   const [userName, setUserName] = useState<string>('');
 
   // Auth Handling
@@ -737,6 +739,135 @@ const App: React.FC = () => {
     showToast('Recurring series ended', 'success');
   };
 
+  // ------------------------------------------------------------------
+  // Quick Lists Logic
+  // ------------------------------------------------------------------
+  const fetchLists = useCallback(async () => {
+    if (!session?.user?.id) return;
+    const { data, error } = await supabase
+      .from('quick_lists')
+      .select('*')
+      .eq('user_id', session.user.id);
+
+    if (error) {
+      console.error('Error fetching lists:', error);
+    } else if (data) {
+      setQuickLists(data);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    fetchLists();
+  }, [fetchLists]);
+
+  const saveList = async (listData: Partial<QuickList>) => {
+    if (!session?.user?.id) return;
+
+    const now = Date.now();
+
+    if (listData.id) {
+      // Update
+      setQuickLists(prev => prev.map(l =>
+        l.id === listData.id ? { ...l, ...listData, updatedAt: now } as QuickList : l
+      ));
+
+      const { error } = await supabase
+        .from('quick_lists')
+        .update({ ...listData, updatedAt: now })
+        .eq('id', listData.id);
+
+      if (error) {
+        console.error('Error saving list:', error);
+        showToast('Failed to save list', 'error');
+        fetchLists();
+      } else {
+        showToast('List saved', 'success');
+      }
+    } else {
+      // Create
+      const newListPayload = {
+        ...listData,
+        user_id: session.user.id,
+        createdAt: now,
+        updatedAt: now,
+        items: listData.items || [],
+        pinned: listData.pinned || false,
+        type: listData.type || 'bullet',
+        title: listData.title || 'Untitled List'
+      };
+
+      const { data, error } = await supabase
+        .from('quick_lists')
+        .insert([newListPayload])
+        .select();
+
+      if (error || !data) {
+        console.error('Error creating list:', error);
+        showToast('Failed to create list', 'error');
+      } else {
+        setQuickLists(prev => [...prev, data[0] as QuickList]);
+        showToast('List created', 'success');
+      }
+    }
+  };
+
+  const createNewList = async () => {
+    if (!session?.user?.id) return;
+
+    const now = Date.now();
+    const newListPayload = {
+      user_id: session.user.id,
+      title: '',
+      type: 'checkbox' as const,
+      items: [],
+      color: '#64748b',
+      pinned: false,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    const { data, error } = await supabase
+      .from('quick_lists')
+      .insert([newListPayload])
+      .select();
+
+    if (error || !data) {
+      console.error('Error creating list:', error);
+      showToast('Failed to create list', 'error');
+    } else {
+      setQuickLists(prev => [data[0] as QuickList, ...prev]);
+    }
+  };
+
+  const deleteList = async (id: string) => {
+    setQuickLists(prev => prev.filter(l => l.id !== id));
+
+    const { error } = await supabase.from('quick_lists').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting list:', error);
+      showToast('Failed to delete list', 'error');
+      fetchLists();
+    } else {
+      showToast('List deleted', 'success');
+    }
+  };
+
+  const toggleListPin = async (list: QuickList, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newPinned = !list.pinned;
+
+    setQuickLists(prev => prev.map(l => l.id === list.id ? { ...l, pinned: newPinned } : l));
+
+    const { error } = await supabase
+      .from('quick_lists')
+      .update({ pinned: newPinned })
+      .eq('id', list.id);
+
+    if (error) {
+      fetchLists();
+    }
+  };
+
   const handleOpenModal = (task?: Task, parentId: string | null = null) => {
     setEditingTask(task);
     setParentForSubtask(parentId);
@@ -808,6 +939,14 @@ const App: React.FC = () => {
               userEmail={session.user.email || ''}
               userName={userName}
               onNameUpdate={(name) => setUserName(name)}
+            />
+          ) : viewType === 'LISTS' ? (
+            <QuickListsPage
+              lists={quickLists}
+              onSave={saveList}
+              onDelete={deleteList}
+              onTogglePin={toggleListPin}
+              onCreateNew={createNewList}
             />
           ) : (
             <KanbanBoard

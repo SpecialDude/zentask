@@ -66,6 +66,18 @@ const Sidebar: React.FC<SidebarProps> = ({ viewType, setViewType, isDarkMode, se
             label="Kanban Board"
             icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>}
           />
+
+          {/* Divider and Lists Section */}
+          <div className="pt-4 pb-2">
+            <div className="h-px bg-slate-200 dark:bg-slate-800 mx-4 mb-4"></div>
+            <NavItem
+              id="LISTS"
+              label="Lists"
+              icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+              </svg>}
+            />
+          </div>
         </nav>
 
         <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-800 space-y-2">

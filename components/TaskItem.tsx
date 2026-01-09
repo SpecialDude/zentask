@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Task, TaskStatus, TaskPriority } from '../types';
-import { formatDuration, calculateAggregateProgress } from '../utils';
+import { formatDuration, calculateAggregateProgress, scrollInputIntoView } from '../utils';
 
 interface TaskItemProps {
   task: Task;
@@ -234,6 +234,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                         className="w-full text-xs p-2 border rounded bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 mb-2 outline-none"
                         value={cancelReason}
                         onChange={(e) => setCancelReason(e.target.value)}
+                        onFocus={scrollInputIntoView}
                       />
                       <div className="flex justify-end gap-2">
                         <button onClick={() => setShowCancelPrompt(false)} className="text-[10px] px-2 py-1 text-slate-500">Close</button>
@@ -254,8 +255,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
                           <button onClick={() => setQuickDate(1)} className="text-[9px] px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-primary hover:text-white transition-all">Tomorrow</button>
                           <button onClick={() => setQuickDate(2)} className="text-[9px] px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-primary hover:text-white transition-all">Next Day</button>
                         </div>
-                        <input type="date" className="w-full text-xs p-2 border rounded bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 outline-none" value={carryDate} onChange={(e) => setCarryDate(e.target.value)} />
-                        <textarea className="w-full text-xs p-2 border rounded bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 outline-none resize-none" placeholder="Reason (optional)" rows={2} value={carryReason} onChange={(e) => setCarryReason(e.target.value)} />
+                        <input type="date" className="w-full text-xs p-2 border rounded bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 outline-none" value={carryDate} onChange={(e) => setCarryDate(e.target.value)} onFocus={scrollInputIntoView} />
+                        <textarea className="w-full text-xs p-2 border rounded bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 outline-none resize-none" placeholder="Reason (optional)" rows={2} value={carryReason} onChange={(e) => setCarryReason(e.target.value)} onFocus={scrollInputIntoView} />
                         <div className="flex justify-end gap-2 pt-1">
                           <button onClick={() => setShowCarryPrompt(false)} className="text-[10px] px-2 py-1.5 text-slate-500">Cancel</button>
                           <button onClick={handleCarryOverSubmit} className="text-[10px] px-2 py-1.5 bg-primary text-white font-bold rounded-lg">Confirm</button>

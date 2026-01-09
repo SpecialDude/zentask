@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Task } from '../types';
+import { scrollInputIntoView } from '../utils';
 
 interface TaskReviewModalProps {
     task: Task;
@@ -80,6 +81,7 @@ const TaskReviewModal: React.FC<TaskReviewModalProps> = ({ task, onClose, onSave
                         placeholder="Any notes, learnings, or reflections..."
                         rows={4}
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 resize-none text-sm"
+                        onFocus={scrollInputIntoView}
                     />
                 </div>
 

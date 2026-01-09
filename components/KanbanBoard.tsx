@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Task, TaskStatus } from '../types';
+import { scrollInputIntoView } from '../utils';
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -347,6 +348,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
                     className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-2 text-sm transition-all outline-none"
                     value={promptData.date}
                     onChange={e => setPromptData({ ...promptData, date: e.target.value })}
+                    onFocus={scrollInputIntoView}
                   />
                 </div>
               )}
@@ -362,6 +364,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
                   placeholder="Why are you moving this?"
                   value={promptData.reason}
                   onChange={e => setPromptData({ ...promptData, reason: e.target.value })}
+                  onFocus={scrollInputIntoView}
                 />
               </div>
             </div>

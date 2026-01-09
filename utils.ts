@@ -1,4 +1,6 @@
 
+import React from 'react';
+
 export const generateId = () => Math.random().toString(36).substr(2, 9);
 
 export const getTodayStr = () => new Date().toISOString().split('T')[0];
@@ -17,7 +19,7 @@ export const getSubtasks = (tasks: any[], parentId: string, date?: string) => {
 export const calculateAggregateProgress = (taskId: string, allTasks: any[]): number => {
   const task = allTasks.find(t => t.id === taskId);
   if (!task) return 0;
-  
+
   const subtasks = allTasks.filter(t => t.parentId === taskId && t.date === task.date);
   if (subtasks.length === 0) return task.completion || 0;
 
@@ -31,4 +33,11 @@ export const getStatusFromProgress = (progress: number): TaskStatus => {
   if (progress >= 100) return TaskStatus.COMPLETED;
   if (progress > 0) return TaskStatus.IN_PROGRESS;
   return TaskStatus.TODO;
+};
+
+// Mobile keyboard scroll helper - scrolls focused input into view
+export const scrollInputIntoView = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  setTimeout(() => {
+    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 300); // Delay to allow keyboard to appear
 };
