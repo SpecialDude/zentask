@@ -54,8 +54,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         <ToastContext.Provider value={{ showToast }}>
             {children}
 
-            {/* Action Toasts Container (Top Right) */}
-            <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+            {/* Action Toasts Container (Top Right, below navbar) */}
+            <div className="fixed top-24 right-4 z-[100] flex flex-col gap-2 max-w-sm">
                 {toasts.filter(t => t.action).map(toast => (
                     <ToastItem key={toast.id} toast={toast} onDismiss={() => removeToast(toast.id)} />
                 ))}
