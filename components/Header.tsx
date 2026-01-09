@@ -117,11 +117,10 @@ const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTas
 
           <button
             onClick={onAddTask}
-            className="flex items-center space-x-1 md:space-x-2 bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-xl font-semibold shadow-lg transition-all active:scale-95 text-xs md:text-sm"
+            className="hidden md:flex items-center space-x-1 md:space-x-2 bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-3 md:px-5 py-2 md:py-2.5 rounded-xl font-semibold shadow-lg transition-all active:scale-95 text-xs md:text-sm"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 md:h-5 md:w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
-            <span className="hidden sm:inline">Add Task</span>
-            <span className="sm:hidden">Add</span>
+            <span>Add Task</span>
           </button>
 
           <button
