@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Task, TaskStatus, TaskPriority } from '../types';
 import { formatDuration, calculateAggregateProgress, scrollInputIntoView } from '../utils';
+import { getStatusColor, getPriorityConfig } from '../utils/taskUtils';
 
 interface TaskItemProps {
   task: Task;
@@ -53,25 +54,6 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
     return task.date === lastDate;
   }, [task, allTasks]);
-
-  const getStatusColor = (status: TaskStatus) => {
-    switch (status) {
-      case TaskStatus.COMPLETED: return 'bg-green-500';
-      case TaskStatus.IN_PROGRESS: return 'bg-primary';
-      case TaskStatus.CANCELLED: return 'bg-slate-400';
-      default: return 'bg-slate-200 dark:bg-slate-700';
-    }
-  };
-
-  const getPriorityConfig = (priority?: TaskPriority) => {
-    switch (priority) {
-      case TaskPriority.URGENT: return { label: '🔥 Urgent', bgColor: 'bg-red-100 dark:bg-red-900/30', textColor: 'text-red-600 dark:text-red-400' };
-      case TaskPriority.HIGH: return { label: 'High', bgColor: 'bg-orange-100 dark:bg-orange-900/30', textColor: 'text-orange-600 dark:text-orange-400' };
-      case TaskPriority.MEDIUM: return { label: 'Medium', bgColor: 'bg-blue-100 dark:bg-blue-900/30', textColor: 'text-blue-600 dark:text-blue-400' };
-      case TaskPriority.LOW: return { label: 'Low', bgColor: 'bg-slate-100 dark:bg-slate-700', textColor: 'text-slate-500' };
-      default: return null;
-    }
-  };
 
   const handleStatusToggle = () => {
     if (task.status === TaskStatus.COMPLETED) {
