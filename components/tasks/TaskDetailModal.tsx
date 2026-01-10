@@ -1,6 +1,6 @@
 import React from 'react';
-import { Task, TaskStatus, TaskPriority, RecurrencePattern } from '../types';
-import { formatDuration } from '../utils';
+import { Task, TaskStatus, TaskPriority, RecurrencePattern } from '../../types';
+import { formatDuration } from '../../utils';
 
 interface TaskDetailModalProps {
     task: Task;

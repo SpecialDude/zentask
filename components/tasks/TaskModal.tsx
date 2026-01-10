@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Task, TaskStatus, TaskPriority, RecurrencePattern } from '../types';
-import { scrollInputIntoView } from '../utils';
+import { Task, TaskStatus, TaskPriority, RecurrencePattern } from '../../types';
+import { scrollInputIntoView } from '../../utils';
 
 interface TaskModalProps {
   onClose: () => void;

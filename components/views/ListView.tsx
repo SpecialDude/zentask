@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { Task, TaskStatus, TaskPriority } from '../types';
-import TaskItem from './TaskItem';
+import { Task, TaskStatus, TaskPriority } from '../../types';
+import { TaskItem } from '../tasks';
 
 interface ListViewProps {
   tasks: Task[];

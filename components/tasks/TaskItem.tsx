@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
-import { Task, TaskStatus, TaskPriority } from '../types';
-import { formatDuration, calculateAggregateProgress, scrollInputIntoView } from '../utils';
-import { getStatusColor, getPriorityConfig } from '../utils/taskUtils';
+import { Task, TaskStatus, TaskPriority } from '../../types';
+import { formatDuration, calculateAggregateProgress, scrollInputIntoView } from '../../utils';
+import { getStatusColor, getPriorityConfig } from '../../utils/taskUtils';
 
 interface TaskItemProps {
   task: Task;

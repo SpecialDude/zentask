@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Task, TaskStatus } from '../types';
-import { scrollInputIntoView } from '../utils';
+import { Task, TaskStatus } from '../../types';
+import { scrollInputIntoView } from '../../utils';
 
 interface KanbanBoardProps {
   tasks: Task[];

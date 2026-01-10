@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { supabase } from '../supabase';
-import DatePicker from './DatePicker';
+import { supabase } from '../../supabase';
+import DatePicker from '../DatePicker';
 
 interface HeaderProps {
   selectedDate: string;

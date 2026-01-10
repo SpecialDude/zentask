@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Task } from '../types';
-import { scrollInputIntoView } from '../utils';
+import { Task } from '../../types';
+import { scrollInputIntoView } from '../../utils';
 
 interface TaskReviewModalProps {
     task: Task;

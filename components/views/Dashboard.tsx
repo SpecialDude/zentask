@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Task, TaskStatus, TaskPriority } from '../types';
+import { Task, TaskStatus, TaskPriority } from '../../types';
 
 interface DashboardProps {
     tasks: Task[];
@@ -558,10 +558,10 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
                                         >
                                             <div className="flex justify-between items-start mb-1">
                                                 <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${daysLeft <= 0
-                                                        ? 'text-red-500 bg-red-50 dark:bg-red-500/10'
-                                                        : daysLeft === 1
-                                                            ? 'text-orange-500 bg-orange-50 dark:bg-orange-500/10'
-                                                            : 'text-amber-500 bg-amber-50 dark:bg-amber-500/10'
+                                                    ? 'text-red-500 bg-red-50 dark:bg-red-500/10'
+                                                    : daysLeft === 1
+                                                        ? 'text-orange-500 bg-orange-50 dark:bg-orange-500/10'
+                                                        : 'text-amber-500 bg-amber-50 dark:bg-amber-500/10'
                                                     }`}>
                                                     {daysLeft <= 0 ? 'Ends today' : daysLeft === 1 ? 'Ends tomorrow' : `Ends in ${daysLeft} days`}
                                                 </span>

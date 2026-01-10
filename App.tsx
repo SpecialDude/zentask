@@ -1,22 +1,24 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Task, TaskStatus, ViewType, RecurrencePattern, QuickList, ListType } from './types';
 import { generateId, getTodayStr, getStatusFromProgress } from './utils';
-import Sidebar from './components/Sidebar';
-import Header from './components/Header';
-import ListView from './components/ListView';
-import KanbanBoard from './components/KanbanBoard';
-import TaskModal from './components/TaskModal';
-import TaskDetailModal from './components/TaskDetailModal';
+
+// Layout components
+import { Sidebar, Header } from './components/layout';
+
+// View components
+import { ListView, KanbanBoard, Dashboard } from './components/views';
+
+// Task components
+import { TaskModal, TaskDetailModal, TaskReviewModal, ExtendRecurringModal } from './components/tasks';
+
+// Other components
 import AIModal from './components/AIModal';
 import Settings from './components/Settings';
-import ExtendRecurringModal from './components/ExtendRecurringModal';
-import TaskReviewModal from './components/TaskReviewModal';
 import { QuickListsPage, QuickListEditorModal, QuickListDocumentEditor } from './components/quickLists';
 import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstallPrompt from './components/InstallPrompt';
-import Dashboard from './components/Dashboard';
 import { useToast } from './components/Toast';
 import { supabase } from './supabase';
 import * as listService from './services/listService';
