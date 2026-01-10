@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Task, TaskStatus, ViewType, RecurrencePattern, QuickList, ListType } from './types';
 import { generateId, getTodayStr, getStatusFromProgress } from './utils';
@@ -20,6 +19,8 @@ import InstallPrompt from './components/InstallPrompt';
 import Dashboard from './components/Dashboard';
 import { useToast } from './components/Toast';
 import { supabase } from './supabase';
+import * as listService from './services/listService';
+import * as taskService from './services/taskService';
 
 const App: React.FC = () => {
   const { showToast } = useToast();
@@ -128,12 +129,9 @@ const App: React.FC = () => {
   // Fetch Tasks from Supabase
   useEffect(() => {
     if (session?.user?.id) {
-      const fetchTasks = async () => {
+      const fetchTasksData = async () => {
         setIsLoading(true);
-        const { data, error } = await supabase
-          .from('tasks')
-          .select('*')
-          .eq('user_id', session.user.id);
+        const { data, error } = await taskService.fetchTasks(session.user.id);
 
         if (error) {
           console.error('Error fetching tasks:', error);
@@ -143,7 +141,7 @@ const App: React.FC = () => {
         }
         setIsLoading(false);
       };
-      fetchTasks();
+      fetchTasksData();
     } else {
       setTasks([]);
       setIsLoading(false);
@@ -784,10 +782,7 @@ const App: React.FC = () => {
   // ------------------------------------------------------------------
   const fetchLists = useCallback(async () => {
     if (!session?.user?.id) return;
-    const { data, error } = await supabase
-      .from('quick_lists')
-      .select('*')
-      .eq('user_id', session.user.id);
+    const { data, error } = await listService.fetchLists(session.user.id);
 
     if (error) {
       console.error('Error fetching lists:', error);
@@ -889,7 +884,7 @@ const App: React.FC = () => {
   const deleteList = async (id: string) => {
     setQuickLists(prev => prev.filter(l => l.id !== id));
 
-    const { error } = await supabase.from('quick_lists').delete().eq('id', id);
+    const { error } = await listService.deleteListFromDb(id);
     if (error) {
       console.error('Error deleting list:', error);
       showToast('Failed to delete list', 'error');
@@ -905,10 +900,7 @@ const App: React.FC = () => {
 
     setQuickLists(prev => prev.map(l => l.id === list.id ? { ...l, pinned: newPinned } : l));
 
-    const { error } = await supabase
-      .from('quick_lists')
-      .update({ pinned: newPinned })
-      .eq('id', list.id);
+    const { error } = await listService.toggleListPinInDb(list.id, list.pinned);
 
     if (error) {
       fetchLists();
