@@ -123,78 +123,6 @@ const App: React.FC = () => {
     return syncParents(parent.id, updatedTasks);
   };
 
-  const generateRecurringInstances = (baseTask: Task, allTasks: Task[] = []): Task[] => {
-    if (!baseTask.isRecurring || !baseTask.recurrencePattern) return [];
-
-    // Get subtree of the baseTask at the same date
-    const getSubtree = (parentId: string): Task[] => {
-      const children = allTasks.filter(t => t.parentId === parentId && t.date === baseTask.date);
-      let subtree = [...children];
-      children.forEach(child => {
-        subtree = [...subtree, ...getSubtree(child.id)];
-      });
-      return subtree;
-    };
-    const baseSubtree = getSubtree(baseTask.id);
-
-    const instances: Task[] = [];
-    const startDate = new Date(baseTask.date);
-    const endDate = baseTask.recurrenceEndDate ? new Date(baseTask.recurrenceEndDate) : new Date(startDate);
-    if (!baseTask.recurrenceEndDate) endDate.setMonth(endDate.getMonth() + 3); // Default 3 months
-
-    let currentDate = new Date(startDate);
-    currentDate.setDate(currentDate.getDate() + 1); // Start from next occurrence
-
-    while (currentDate <= endDate) {
-      let shouldAdd = false;
-      if (baseTask.recurrencePattern === RecurrencePattern.DAILY) shouldAdd = true;
-      else if (baseTask.recurrencePattern === RecurrencePattern.WEEKLY) {
-        if (currentDate.getDay() === startDate.getDay()) shouldAdd = true;
-      } else if (baseTask.recurrencePattern === RecurrencePattern.WEEKDAYS) {
-        const day = currentDate.getDay();
-        if (day !== 0 && day !== 6) shouldAdd = true;
-      } else if (baseTask.recurrencePattern === RecurrencePattern.MONTHLY) {
-        if (currentDate.getDate() === startDate.getDate()) shouldAdd = true;
-      }
-
-      if (shouldAdd) {
-        const dateStr = currentDate.toISOString().split('T')[0];
-        const newRootId = generateId();
-
-        // Clone the root task for this date
-        instances.push({
-          ...baseTask,
-          id: newRootId,
-          date: dateStr,
-          recurringParentId: baseTask.id,
-          isRecurring: true,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        });
-
-        // Clone the subtree and link it to the new parent IDs
-        const idMap: Record<string, string> = { [baseTask.id]: newRootId };
-        baseSubtree.forEach(st => {
-          const newStId = generateId();
-          idMap[st.id] = newStId;
-          instances.push({
-            ...st,
-            id: newStId,
-            parentId: idMap[st.parentId!] || null,
-            date: dateStr,
-            recurringParentId: st.id,
-            isRecurring: true,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          });
-        });
-      }
-      currentDate.setDate(currentDate.getDate() + 1);
-      if (instances.length > 500) break; // Safety break
-    }
-    return instances;
-  };
-
   const addTask = async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'user_id'>) => {
     if (!session?.user?.id) return;
 
@@ -207,7 +135,7 @@ const App: React.FC = () => {
     } as Task;
 
     const tasksToInsert: Task[] = [newTask];
-    const recurringInstances = generateRecurringInstances(newTask, tasks);
+    const recurringInstances = taskService.generateRecurringInstances(newTask, tasks);
     tasksToInsert.push(...recurringInstances);
 
     // Unified recurrence handled by helper above
@@ -336,7 +264,7 @@ const App: React.FC = () => {
       // 3. Generate instances for the WHOLE ROOT TREE starting from its root
       // This ensures the entire hierarchy repeats correctly
       const updatedRoot = { ...currentRoot, ...recProps } as Task;
-      addedRecurringInstances = generateRecurringInstances(updatedRoot, tasks);
+      addedRecurringInstances = taskService.generateRecurringInstances(updatedRoot, tasks);
 
       if (addedRecurringInstances.length > 0) {
         const { error: insertError } = await supabase.from('tasks').insert(addedRecurringInstances);
