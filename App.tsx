@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Task, TaskStatus, ViewType, RecurrencePattern, QuickList, ListType } from './types';
 import { generateId, getTodayStr, getStatusFromProgress } from './utils';
 
+// Custom hooks
+import { useTheme, useAuth, useViewNavigation } from './hooks';
+
 // Layout components
 import { Sidebar, Header } from './components/layout';
 
@@ -26,45 +29,19 @@ import * as taskService from './services/taskService';
 
 const App: React.FC = () => {
   const { showToast } = useToast();
-  const [session, setSession] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+
+  // Custom hooks
+  const { session, userName, setUserName, isLoading, isAuthenticated } = useAuth();
+  const { isDarkMode, setIsDarkMode } = useTheme();
+  const { viewType, setViewType } = useViewNavigation();
+
+  // Task state
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [isTasksLoading, setIsTasksLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
 
-  // URL hash-based routing helper
-  const getViewFromHash = (): ViewType => {
-    const hash = window.location.hash.slice(1).toLowerCase(); // Remove # and lowercase
-    const viewMap: Record<string, ViewType> = {
-      'dashboard': 'DASHBOARD',
-      'kanban': 'KANBAN',
-      'lists': 'LISTS',
-      'settings': 'SETTINGS',
-      '': 'LIST', // default
-      'list': 'LIST',
-      'tasks': 'LIST'
-    };
-    return viewMap[hash] || 'LIST';
-  };
-
-  const [viewType, setViewTypeState] = useState<ViewType>(getViewFromHash);
-
-  // Custom setViewType that also updates URL hash
-  const setViewType = useCallback((newView: ViewType) => {
-    setViewTypeState(newView);
-    const hashMap: Record<ViewType, string> = {
-      'DASHBOARD': 'dashboard',
-      'KANBAN': 'kanban',
-      'LISTS': 'lists',
-      'SETTINGS': 'settings',
-      'LIST': 'tasks'
-    };
-    window.location.hash = hashMap[newView];
-  }, []);
+  // UI state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    return localStorage.getItem('theme') === 'dark' ||
-      (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
@@ -77,29 +54,11 @@ const App: React.FC = () => {
   const [isFabVisible, setIsFabVisible] = useState(true);
   const lastScrollY = useRef(0);
   const [reviewingTask, setReviewingTask] = useState<Task | null>(null);
+
+  // Quick Lists state
   const [quickLists, setQuickLists] = useState<QuickList[]>([]);
   const [editingList, setEditingList] = useState<QuickList | undefined>(undefined);
   const [isListModalOpen, setIsListModalOpen] = useState(false);
-  const [userName, setUserName] = useState<string>('');
-
-  // Auth Handling
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user?.user_metadata?.display_name) {
-        setUserName(session.user.user_metadata.display_name);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user?.user_metadata?.display_name) {
-        setUserName(session.user.user_metadata.display_name);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   // FAB scroll visibility handler
   const handleContentScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -119,20 +78,11 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Listen for browser back/forward navigation
-  useEffect(() => {
-    const handleHashChange = () => {
-      setViewTypeState(getViewFromHash());
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
   // Fetch Tasks from Supabase
   useEffect(() => {
     if (session?.user?.id) {
       const fetchTasksData = async () => {
-        setIsLoading(true);
+        setIsTasksLoading(true);
         const { data, error } = await taskService.fetchTasks(session.user.id);
 
         if (error) {
@@ -141,25 +91,13 @@ const App: React.FC = () => {
         } else if (data) {
           setTasks(data);
         }
-        setIsLoading(false);
+        setIsTasksLoading(false);
       };
       fetchTasksData();
     } else {
       setTasks([]);
-      setIsLoading(false);
     }
   }, [session]);
-
-  // Theme Handling
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDarkMode]);
 
   const syncParents = (taskId: string, currentTasks: Task[]): Task[] => {
     const task = currentTasks.find(t => t.id === taskId);
