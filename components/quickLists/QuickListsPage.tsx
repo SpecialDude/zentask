@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { QuickList } from '../types';
-import ListCard from './ListCard';
+import { QuickList } from '../../types';
+import QuickListCard from './QuickListCard';
 
 interface QuickListsPageProps {
     lists: QuickList[];
@@ -8,9 +8,10 @@ interface QuickListsPageProps {
     onDelete: (id: string) => void;
     onTogglePin: (list: QuickList, e: React.MouseEvent) => void;
     onCreateNew: () => void;
+    onOpenInModal: (list: QuickList) => void;
 }
 
-const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete, onTogglePin, onCreateNew }) => {
+const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete, onTogglePin, onCreateNew, onOpenInModal }) => {
     const { pinnedLists, groupedLists } = useMemo(() => {
         const pinned = lists.filter(l => l.pinned).sort((a, b) => b.updatedAt - a.updatedAt);
         const unpinned = lists.filter(l => !l.pinned).sort((a, b) => b.createdAt - a.createdAt);
@@ -73,12 +74,13 @@ const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete
                     </div>
                     <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 md:gap-6 space-y-4 md:space-y-6">
                         {pinnedLists.map(list => (
-                            <ListCard
+                            <QuickListCard
                                 key={list.id}
                                 list={list}
                                 onSave={onSave}
                                 onDelete={onDelete}
                                 onTogglePin={(e) => onTogglePin(list, e)}
+                                onOpenInModal={() => onOpenInModal(list)}
                             />
                         ))}
                     </div>
@@ -109,12 +111,13 @@ const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete
                         </div>
                         <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 md:gap-6 space-y-4 md:space-y-6">
                             {groupedLists[group].map(list => (
-                                <ListCard
+                                <QuickListCard
                                     key={list.id}
                                     list={list}
                                     onSave={onSave}
                                     onDelete={onDelete}
                                     onTogglePin={(e) => onTogglePin(list, e)}
+                                    onOpenInModal={() => onOpenInModal(list)}
                                 />
                             ))}
                         </div>

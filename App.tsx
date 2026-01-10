@@ -12,7 +12,7 @@ import AIModal from './components/AIModal';
 import Settings from './components/Settings';
 import ExtendRecurringModal from './components/ExtendRecurringModal';
 import TaskReviewModal from './components/TaskReviewModal';
-import QuickListsPage from './components/QuickListsPage';
+import { QuickListsPage, QuickListEditorModal } from './components/quickLists';
 import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -75,6 +75,8 @@ const App: React.FC = () => {
   const lastScrollY = useRef(0);
   const [reviewingTask, setReviewingTask] = useState<Task | null>(null);
   const [quickLists, setQuickLists] = useState<QuickList[]>([]);
+  const [editingList, setEditingList] = useState<QuickList | undefined>(undefined);
+  const [isListModalOpen, setIsListModalOpen] = useState(false);
   const [userName, setUserName] = useState<string>('');
 
   // Auth Handling
@@ -985,6 +987,10 @@ const App: React.FC = () => {
               onDelete={deleteList}
               onTogglePin={toggleListPin}
               onCreateNew={createNewList}
+              onOpenInModal={(list) => {
+                setEditingList(list);
+                setIsListModalOpen(true);
+              }}
             />
           ) : (
             <KanbanBoard
@@ -1106,6 +1112,23 @@ const App: React.FC = () => {
               updateTask(reviewingTask.id, { review: reviewText });
               setReviewingTask(null);
             }}
+          />
+        )}
+
+        {/* Quick List Editor Modal */}
+        {isListModalOpen && (
+          <QuickListEditorModal
+            list={editingList}
+            onClose={() => {
+              setIsListModalOpen(false);
+              setEditingList(undefined);
+            }}
+            onSave={(listData) => {
+              saveList(listData);
+              setIsListModalOpen(false);
+              setEditingList(undefined);
+            }}
+            onDelete={deleteList}
           />
         )}
 

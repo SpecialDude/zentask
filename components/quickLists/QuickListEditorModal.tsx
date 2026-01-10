@@ -1,67 +1,53 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { QuickList, ListItem, ListType } from '../types';
-import { generateId } from '../utils';
+import { QuickList, ListItem } from '../../types';
+import { scrollInputIntoView } from '../../utils';
+import {
+    QUICK_LIST_COLORS,
+    useQuickListEditor,
+    QuickListDeleteConfirm
+} from './index';
 
-interface ListEditorModalProps {
+interface QuickListEditorModalProps {
     list?: QuickList;
     onClose: () => void;
     onSave: (listData: Partial<QuickList>) => void;
     onDelete: (id: string) => void;
 }
 
-const COLORS = [
-    { hex: '#64748b', name: 'Slate' },
-    { hex: '#ef4444', name: 'Red' },
-    { hex: '#f97316', name: 'Orange' },
-    { hex: '#eab308', name: 'Yellow' },
-    { hex: '#22c55e', name: 'Green' },
-    { hex: '#3b82f6', name: 'Blue' },
-    { hex: '#a855f7', name: 'Purple' },
-    { hex: '#ec4899', name: 'Pink' }
-];
+const QuickListEditorModal: React.FC<QuickListEditorModalProps> = ({ list, onClose, onSave, onDelete }) => {
+    const {
+        title, setTitle,
+        items,
+        type, setType,
+        color, setColor,
+        pinned, setPinned,
+        addItem,
+        updateItem,
+        deleteItem,
+        reorderItems
+    } = useQuickListEditor({
+        initialTitle: list?.title,
+        initialItems: list?.items,
+        initialType: list?.type,
+        initialColor: list?.color,
+        initialPinned: list?.pinned
+    });
 
-const ListEditorModal: React.FC<ListEditorModalProps> = ({ list, onClose, onSave, onDelete }) => {
-    const [title, setTitle] = useState(list?.title || '');
-    const [type, setType] = useState<ListType>(list?.type || 'bullet');
-    const [items, setItems] = useState<ListItem[]>(list?.items || []);
-    const [color, setColor] = useState(list?.color || '#64748b');
-    const [pinned, setPinned] = useState(list?.pinned || false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-
     const newItemInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (!list) {
-            // Auto-focus title for new lists
             const timer = setTimeout(() => document.getElementById('list-title-input')?.focus(), 100);
             return () => clearTimeout(timer);
         }
     }, [list]);
 
-    const handleAddItem = (content: string) => {
-        if (!content.trim()) return;
-        const newItem: ListItem = {
-            id: generateId(),
-            content: content.trim(),
-            checked: false,
-            order: items.length
-        };
-        setItems([...items, newItem]);
-        if (newItemInputRef.current) newItemInputRef.current.value = '';
-    };
-
-    const handleUpdateItem = (id: string, updates: Partial<ListItem>) => {
-        setItems(items.map(item => item.id === id ? { ...item, ...updates } : item));
-    };
-
-    const handleDeleteItem = (id: string) => {
-        setItems(items.filter(item => item.id !== id));
-    };
-
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            handleAddItem(e.currentTarget.value);
+            addItem(e.currentTarget.value);
+            if (newItemInputRef.current) newItemInputRef.current.value = '';
         }
     };
 
@@ -72,7 +58,7 @@ const ListEditorModal: React.FC<ListEditorModalProps> = ({ list, onClose, onSave
         }
 
         onSave({
-            ...(list?.id && { id: list.id }), // Include ID for existing lists
+            ...(list?.id && { id: list.id }),
             title: title.trim() || 'Untitled List',
             type,
             items,
@@ -97,14 +83,7 @@ const ListEditorModal: React.FC<ListEditorModalProps> = ({ list, onClose, onSave
 
     const handleDragEnd = () => {
         if (dragItem.current !== null && dragOverItem.current !== null) {
-            const copyListItems = [...items];
-            const dragItemContent = copyListItems[dragItem.current];
-            copyListItems.splice(dragItem.current, 1);
-            copyListItems.splice(dragOverItem.current, 0, dragItemContent);
-
-            // Update order
-            const updatedItems = copyListItems.map((item, index) => ({ ...item, order: index }));
-            setItems(updatedItems);
+            reorderItems(dragItem.current, dragOverItem.current);
         }
         dragItem.current = null;
         dragOverItem.current = null;
@@ -123,6 +102,7 @@ const ListEditorModal: React.FC<ListEditorModalProps> = ({ list, onClose, onSave
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="List Title"
+                        onFocus={scrollInputIntoView}
                         className="text-xl md:text-2xl font-bold bg-transparent border-none outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 w-full text-slate-800 dark:text-white"
                     />
                     <div className="flex items-center gap-2 ml-4">
@@ -179,9 +159,9 @@ const ListEditorModal: React.FC<ListEditorModalProps> = ({ list, onClose, onSave
 
                     <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1"></div>
 
-                    {/* Color Picker */}
+                    {/* Color Picker - Expanded for modal */}
                     <div className="flex items-center gap-1.5">
-                        {COLORS.map(c => (
+                        {QUICK_LIST_COLORS.map(c => (
                             <button
                                 key={c.hex}
                                 onClick={() => setColor(c.hex)}
@@ -216,7 +196,7 @@ const ListEditorModal: React.FC<ListEditorModalProps> = ({ list, onClose, onSave
                             <div className="mt-1">
                                 {type === 'checkbox' && (
                                     <button
-                                        onClick={() => handleUpdateItem(item.id, { checked: !item.checked })}
+                                        onClick={() => updateItem(item.id, { checked: !item.checked })}
                                         className={`w-6 h-6 border-2 rounded-lg flex items-center justify-center transition-all ${item.checked ? 'bg-slate-400 border-slate-400' : 'border-slate-300 dark:border-slate-600 hover:border-slate-400'}`}
                                     >
                                         {item.checked && (
@@ -238,13 +218,14 @@ const ListEditorModal: React.FC<ListEditorModalProps> = ({ list, onClose, onSave
                             <input
                                 type="text"
                                 value={item.content}
-                                onChange={(e) => handleUpdateItem(item.id, { content: e.target.value })}
+                                onChange={(e) => updateItem(item.id, { content: e.target.value })}
+                                onFocus={scrollInputIntoView}
                                 className={`flex-1 bg-transparent border-none outline-none py-1 text-slate-700 dark:text-slate-200 ${item.checked && type === 'checkbox' ? 'line-through text-slate-400 dark:text-slate-500' : 'font-medium'}`}
                             />
 
                             {/* Delete Button */}
                             <button
-                                onClick={() => handleDeleteItem(item.id)}
+                                onClick={() => deleteItem(item.id)}
                                 className="mt-1 p-1 text-slate-300 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                                 tabIndex={-1}
                             >
@@ -263,6 +244,7 @@ const ListEditorModal: React.FC<ListEditorModalProps> = ({ list, onClose, onSave
                             type="text"
                             placeholder="Add list item..."
                             onKeyDown={handleKeyDown}
+                            onFocus={scrollInputIntoView}
                             className="flex-1 bg-transparent border-none outline-none py-2 text-slate-600 dark:text-slate-400 placeholder:text-slate-300 dark:placeholder:text-slate-600"
                         />
                     </div>
@@ -299,34 +281,19 @@ const ListEditorModal: React.FC<ListEditorModalProps> = ({ list, onClose, onSave
                 </div>
             </div>
 
-            {/* Delete Confirmation Overlay */}
+            {/* Delete Confirmation */}
             {isDeleteConfirmOpen && (
-                <div className="absolute inset-0 z-[110] bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4 border border-red-100 dark:border-red-900/30 animate-in fade-in zoom-in duration-200">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Delete this list?</h3>
-                        <p className="text-slate-500 mb-6 text-sm">This action cannot be undone.</p>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setIsDeleteConfirmOpen(false)}
-                                className="flex-1 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => {
-                                    if (list) onDelete(list.id);
-                                    onClose();
-                                }}
-                                className="flex-1 py-2.5 rounded-xl font-bold bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/30"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <QuickListDeleteConfirm
+                    title={title || 'Untitled List'}
+                    onCancel={() => setIsDeleteConfirmOpen(false)}
+                    onConfirm={() => {
+                        if (list) onDelete(list.id);
+                        onClose();
+                    }}
+                />
             )}
         </div>
     );
 };
 
-export default ListEditorModal;
+export default QuickListEditorModal;
