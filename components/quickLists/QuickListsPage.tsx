@@ -1,17 +1,50 @@
-import React, { useMemo } from 'react';
-import { QuickList } from '../../types';
+import React, { useMemo, useState } from 'react';
+import { QuickList, ListType } from '../../types';
 import QuickListCard from './QuickListCard';
+import { QuickListDocumentCard } from './document';
 
 interface QuickListsPageProps {
     lists: QuickList[];
     onSave: (listData: Partial<QuickList>) => void;
     onDelete: (id: string) => void;
     onTogglePin: (list: QuickList, e: React.MouseEvent) => void;
-    onCreateNew: () => void;
+    onCreateNew: (type?: ListType) => void;
     onOpenInModal: (list: QuickList) => void;
 }
 
+// Component to render the appropriate card based on list type
+const ListCardRenderer: React.FC<{
+    list: QuickList;
+    onSave: (listData: Partial<QuickList>) => void;
+    onDelete: (id: string) => void;
+    onTogglePin: (e: React.MouseEvent) => void;
+    onOpenInModal: () => void;
+}> = ({ list, onSave, onDelete, onTogglePin, onOpenInModal }) => {
+    if (list.type === 'document') {
+        return (
+            <QuickListDocumentCard
+                list={list}
+                onSave={onSave}
+                onDelete={onDelete}
+                onTogglePin={onTogglePin}
+                onOpenInModal={onOpenInModal}
+            />
+        );
+    }
+    return (
+        <QuickListCard
+            list={list}
+            onSave={onSave}
+            onDelete={onDelete}
+            onTogglePin={onTogglePin}
+            onOpenInModal={onOpenInModal}
+        />
+    );
+};
+
 const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete, onTogglePin, onCreateNew, onOpenInModal }) => {
+    const [showTypeMenu, setShowTypeMenu] = useState(false);
+
     const { pinnedLists, groupedLists } = useMemo(() => {
         const pinned = lists.filter(l => l.pinned).sort((a, b) => b.updatedAt - a.updatedAt);
         const unpinned = lists.filter(l => !l.pinned).sort((a, b) => b.createdAt - a.createdAt);
@@ -53,15 +86,66 @@ const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete
                     <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">Quick Lists</h1>
                     <p className="text-sm md:text-base text-slate-500 dark:text-slate-400 mt-1">Capture ideas, shopping lists, and notes</p>
                 </div>
-                <button
-                    onClick={onCreateNew}
-                    className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                    </svg>
-                    New List
-                </button>
+
+                {/* Create New Button with Dropdown */}
+                <div className="relative">
+                    <button
+                        onClick={() => setShowTypeMenu(!showTypeMenu)}
+                        className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center gap-2 text-sm md:text-base w-full sm:w-auto justify-center"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                        </svg>
+                        New
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+
+                    {showTypeMenu && (
+                        <>
+                            <div className="fixed inset-0 z-40" onClick={() => setShowTypeMenu(false)}></div>
+                            <div className="absolute right-0 top-full mt-2 z-50 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1 min-w-[180px] animate-in fade-in slide-in-from-top-2 duration-150">
+                                <button
+                                    onClick={() => { onCreateNew('checkbox'); setShowTypeMenu(false); }}
+                                    className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-left"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="text-sm text-slate-700 dark:text-slate-200">Checklist</span>
+                                </button>
+                                <button
+                                    onClick={() => { onCreateNew('bullet'); setShowTypeMenu(false); }}
+                                    className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-left"
+                                >
+                                    <span className="text-lg text-slate-400 leading-none w-5 text-center">•</span>
+                                    <span className="text-sm text-slate-700 dark:text-slate-200">Bullet List</span>
+                                </button>
+                                <button
+                                    onClick={() => { onCreateNew('numbered'); setShowTypeMenu(false); }}
+                                    className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-left"
+                                >
+                                    <span className="font-mono font-bold text-sm text-slate-400 w-5 text-center">1.</span>
+                                    <span className="text-sm text-slate-700 dark:text-slate-200">Numbered List</span>
+                                </button>
+                                <div className="h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
+                                <button
+                                    onClick={() => { onCreateNew('document'); setShowTypeMenu(false); }}
+                                    className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-left"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                                    </svg>
+                                    <div>
+                                        <span className="text-sm text-slate-700 dark:text-slate-200 block">Document</span>
+                                        <span className="text-xs text-slate-400">Rich notes & nesting</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             {pinnedLists.length > 0 && (
@@ -74,7 +158,7 @@ const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete
                     </div>
                     <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 md:gap-6 space-y-4 md:space-y-6">
                         {pinnedLists.map(list => (
-                            <QuickListCard
+                            <ListCardRenderer
                                 key={list.id}
                                 list={list}
                                 onSave={onSave}
@@ -97,7 +181,7 @@ const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete
                     <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">No lists yet</h3>
                     <p className="text-slate-500 mb-6 max-w-xs mx-auto">Create your first list to check off items, jot down ideas, or keep track of things.</p>
                     <button
-                        onClick={onCreateNew}
+                        onClick={() => onCreateNew()}
                         className="text-primary font-bold hover:underline"
                     >
                         Create new list
@@ -111,7 +195,7 @@ const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete
                         </div>
                         <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 md:gap-6 space-y-4 md:space-y-6">
                             {groupedLists[group].map(list => (
-                                <QuickListCard
+                                <ListCardRenderer
                                     key={list.id}
                                     list={list}
                                     onSave={onSave}

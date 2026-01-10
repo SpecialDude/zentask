@@ -49,7 +49,21 @@ export interface Task {
 }
 
 
-export type ListType = 'bullet' | 'checkbox' | 'numbered';
+export type ListType = 'bullet' | 'checkbox' | 'numbered' | 'document';
+
+// Block types for document mode
+export type BlockType = 'paragraph' | 'heading' | 'bullet' | 'checkbox' | 'numbered' | 'blockquote' | 'divider';
+
+// Block interface for document content
+export interface Block {
+  id: string;
+  type: BlockType;
+  content: string;
+  checked?: boolean;      // For checkbox blocks
+  level?: 1 | 2 | 3;     // For headings (h1, h2, h3)
+  indent?: number;        // 0-3 for nesting depth
+  order: number;
+}
 
 export interface ListItem {
   id: string;
@@ -63,7 +77,8 @@ export interface QuickList {
   user_id: string;
   title: string;
   type: ListType;
-  items: ListItem[];
+  items: ListItem[];      // For bullet/checkbox/numbered lists
+  blocks?: Block[];       // For document type
   color?: string;
   pinned: boolean;
   createdAt: number;

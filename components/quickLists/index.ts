@@ -7,3 +7,10 @@ export { default as QuickListDeleteConfirm } from './QuickListDeleteConfirm';
 export { default as QuickListCard } from './QuickListCard';
 export { default as QuickListEditorModal } from './QuickListEditorModal';
 export { default as QuickListsPage } from './QuickListsPage';
+
+// Document type components
+export {
+    QuickListDocumentCard,
+    QuickListDocumentEditor,
+    useDocumentEditor
+} from './document';

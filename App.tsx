@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Task, TaskStatus, ViewType, RecurrencePattern, QuickList } from './types';
+import { Task, TaskStatus, ViewType, RecurrencePattern, QuickList, ListType } from './types';
 import { generateId, getTodayStr, getStatusFromProgress } from './utils';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -12,7 +12,7 @@ import AIModal from './components/AIModal';
 import Settings from './components/Settings';
 import ExtendRecurringModal from './components/ExtendRecurringModal';
 import TaskReviewModal from './components/TaskReviewModal';
-import { QuickListsPage, QuickListEditorModal } from './components/quickLists';
+import { QuickListsPage, QuickListEditorModal, QuickListDocumentEditor } from './components/quickLists';
 import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -851,14 +851,21 @@ const App: React.FC = () => {
     }
   };
 
-  const createNewList = async () => {
+  const createNewList = async (type: ListType = 'checkbox') => {
     if (!session?.user?.id) return;
+
+    // For document type, open the modal instead of creating inline
+    if (type === 'document') {
+      setEditingList(undefined);
+      setIsListModalOpen(true);
+      return;
+    }
 
     const now = Date.now();
     const newListPayload = {
       user_id: session.user.id,
       title: '',
-      type: 'checkbox' as const,
+      type,
       items: [],
       color: '#64748b',
       pinned: false,
@@ -1115,21 +1122,39 @@ const App: React.FC = () => {
           />
         )}
 
-        {/* Quick List Editor Modal */}
+        {/* Quick List Editor Modal - routes to appropriate editor */}
         {isListModalOpen && (
-          <QuickListEditorModal
-            list={editingList}
-            onClose={() => {
-              setIsListModalOpen(false);
-              setEditingList(undefined);
-            }}
-            onSave={(listData) => {
-              saveList(listData);
-              setIsListModalOpen(false);
-              setEditingList(undefined);
-            }}
-            onDelete={deleteList}
-          />
+          // Show document editor for new documents (editingList undefined when creating document)
+          // or when editing an existing document
+          editingList?.type === 'document' || (!editingList && isListModalOpen) ? (
+            <QuickListDocumentEditor
+              list={editingList?.type === 'document' ? editingList : undefined}
+              onClose={() => {
+                setIsListModalOpen(false);
+                setEditingList(undefined);
+              }}
+              onSave={(listData) => {
+                saveList(listData);
+                setIsListModalOpen(false);
+                setEditingList(undefined);
+              }}
+              onDelete={deleteList}
+            />
+          ) : (
+            <QuickListEditorModal
+              list={editingList}
+              onClose={() => {
+                setIsListModalOpen(false);
+                setEditingList(undefined);
+              }}
+              onSave={(listData) => {
+                saveList(listData);
+                setIsListModalOpen(false);
+                setEditingList(undefined);
+              }}
+              onDelete={deleteList}
+            />
+          )
         )}
 
         {/* Delete Confirmation Modal for Recurring Tasks */}
