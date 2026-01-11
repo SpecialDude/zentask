@@ -231,7 +231,7 @@ const App: React.FC = () => {
         )}
 
         {isAIModalOpen && (
-          <AIModal onClose={() => setIsAIModalOpen(false)} onPlanGenerated={handleAIPlanGenerated} />
+          <AIModal onClose={() => setIsAIModalOpen(false)} onPlanGenerated={(tasks) => handleAIPlanGenerated(tasks, selectedDate)} />
         )}
 
         {viewingTask && (

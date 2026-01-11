@@ -422,14 +422,14 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
     }, [tasks, showToast]);
 
     // Handle AI-generated plan
-    const handleAIPlanGenerated = useCallback(async (generatedTasks: any[]) => {
+    const handleAIPlanGenerated = useCallback(async (generatedTasks: any[], taskDate: string) => {
         if (!userId) return;
 
         const processTask = (t: any, parentId: string | null = null): Task[] => {
             const taskId = generateId();
             const newTask: Task = {
                 id: taskId, user_id: userId, title: t.title, description: t.description || '',
-                date: t.date, startTime: t.startTime || '', duration: t.duration || 0,
+                date: t.date || taskDate, startTime: t.startTime || '', duration: t.duration || 0,
                 status: TaskStatus.TODO, completion: 0, priority: t.priority,
                 parentId, createdAt: Date.now(), updatedAt: Date.now(),
             } as Task;

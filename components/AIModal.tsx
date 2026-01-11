@@ -44,7 +44,9 @@ Each object MUST have:
 - 'isRecurring' (optional boolean, true if task repeats regularly)
 - 'recurrencePattern' (optional, one of: DAILY, WEEKLY, MONTHLY, WEEKDAYS - only if isRecurring is true)
 - 'subtasks' (optional, array of same structure)
-If you see a sequence, nest them appropriately. If a time is mentioned, include it. Infer priority from urgency cues.`,
+- 'date' (optional, YYYY-MM-DD format. If a date is mentioned or can be inferred, otherwise omit it. A task and its subtasks must share the same date. Today's date is ${new Date().toISOString().split('T')[0]})
+If you see a sequence, nest them appropriately. If a time is mentioned, include it. Infer priority from urgency cues.
+IMPORTANT: Do NOT include relative date references (like 'tomorrow', 'next week', 'Monday', etc.) in task titles or descriptions. Once you infer the actual date, use the 'date' field instead. Keep titles and descriptions focused on the actual task, not when it occurs - unless the date context is essential for understanding the task.`,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
@@ -53,6 +55,7 @@ If you see a sequence, nest them appropriately. If a time is mentioned, include 
               properties: {
                 title: { type: Type.STRING },
                 description: { type: Type.STRING },
+                date: { type: Type.STRING },
                 startTime: { type: Type.STRING },
                 duration: { type: Type.NUMBER },
                 priority: { type: Type.STRING },
@@ -65,6 +68,7 @@ If you see a sequence, nest them appropriately. If a time is mentioned, include 
                     properties: {
                       title: { type: Type.STRING },
                       description: { type: Type.STRING },
+                      date: { type: Type.STRING },
                       startTime: { type: Type.STRING },
                       duration: { type: Type.NUMBER },
                       priority: { type: Type.STRING },
@@ -123,6 +127,11 @@ If you see a sequence, nest them appropriately. If a time is mentioned, include 
         )}
         {task.startTime && (
           <span className="text-[10px] text-slate-400">{task.startTime}</span>
+        )}
+        {task.date && (
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+            📅 {new Date(task.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </span>
         )}
       </div>
       {task.description && (
