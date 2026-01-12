@@ -5,7 +5,7 @@ import { QuickListDocumentCard } from './document';
 
 interface QuickListsPageProps {
     lists: QuickList[];
-    onSave: (listData: Partial<QuickList>) => void;
+    onSave: (listData: Partial<QuickList>, options?: { suppressToast?: boolean }) => void;
     onDelete: (id: string) => void;
     onTogglePin: (list: QuickList, e: React.MouseEvent) => void;
     onCreateNew: (type?: ListType) => void;
@@ -15,7 +15,7 @@ interface QuickListsPageProps {
 // Component to render the appropriate card based on list type
 const ListCardRenderer: React.FC<{
     list: QuickList;
-    onSave: (listData: Partial<QuickList>) => void;
+    onSave: (listData: Partial<QuickList>, options?: { suppressToast?: boolean }) => void;
     onDelete: (id: string) => void;
     onTogglePin: (e: React.MouseEvent) => void;
     onOpenInModal: () => void;

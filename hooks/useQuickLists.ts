@@ -34,14 +34,15 @@ export function useQuickLists({ userId, showToast }: UseQuickListsOptions) {
     }, [fetchLists]);
 
     // Save (create or update) a list
-    const saveList = useCallback(async (listData: Partial<QuickList>) => {
+    const saveList = useCallback(async (listData: Partial<QuickList>, options?: { suppressToast?: boolean }): Promise<QuickList | undefined> => {
         if (!userId) return;
         const now = Date.now();
 
         if (listData.id) {
             // Update
+            const updatedList = { ...listData, updatedAt: now } as QuickList;
             setQuickLists(prev => prev.map(l =>
-                l.id === listData.id ? { ...l, ...listData, updatedAt: now } as QuickList : l
+                l.id === listData.id ? { ...l, ...updatedList } : l
             ));
 
             const { error } = await supabase
@@ -53,9 +54,11 @@ export function useQuickLists({ userId, showToast }: UseQuickListsOptions) {
                 console.error('Error saving list:', error);
                 showToast('Failed to save list', 'error');
                 fetchLists();
-            } else {
+                return undefined;
+            } else if (!options?.suppressToast) {
                 showToast('List saved', 'success');
             }
+            return updatedList;
         } else {
             // Create
             const newListPayload = {
@@ -77,9 +80,14 @@ export function useQuickLists({ userId, showToast }: UseQuickListsOptions) {
             if (error || !data) {
                 console.error('Error creating list:', error);
                 showToast('Failed to create list', 'error');
+                return undefined;
             } else {
-                setQuickLists(prev => [...prev, data[0] as QuickList]);
-                showToast('List created', 'success');
+                const newList = data[0] as QuickList;
+                setQuickLists(prev => [...prev, newList]);
+                if (!options?.suppressToast) {
+                    showToast('List created', 'success');
+                }
+                return newList;
             }
         }
     }, [userId, showToast, fetchLists]);

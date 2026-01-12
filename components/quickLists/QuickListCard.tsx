@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { QuickList, ListItem, ListType } from '../../types';
 import { scrollInputIntoView } from '../../utils';
+import { useDebounce } from '../../hooks';
 import {
     getQuickListBorderColor,
     useQuickListEditor,
@@ -11,7 +12,7 @@ import {
 
 interface QuickListCardProps {
     list: QuickList;
-    onSave: (listData: Partial<QuickList>) => void;
+    onSave: (listData: Partial<QuickList>, options?: { suppressToast?: boolean }) => void;
     onDelete: (id: string) => void;
     onTogglePin: (e: React.MouseEvent) => void;
     onOpenInModal: () => void;
@@ -38,9 +39,14 @@ const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, o
 
     const [newItemText, setNewItemText] = useState('');
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
 
     const cardRef = useRef<HTMLDivElement>(null);
-    const hasChanges = useRef(false);
+    const isInitialized = useRef(false);
+    const initialTitle = useRef(list.title);
+    const initialItems = useRef(JSON.stringify(list.items || []));
+    const initialType = useRef(list.type);
+    const initialColor = useRef(list.color);
 
     // Sync local state when list prop changes (e.g., after modal edit)
     useEffect(() => {
@@ -51,44 +57,56 @@ const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, o
             initialColor: list.color,
             initialPinned: list.pinned
         });
-        hasChanges.current = false;
+        // Update initial refs
+        initialTitle.current = list.title;
+        initialItems.current = JSON.stringify(list.items || []);
+        initialType.current = list.type;
+        initialColor.current = list.color;
+        isInitialized.current = false;
     }, [list.id, list.updatedAt, resetToInitial]);
 
-    // Track changes
-    useEffect(() => {
-        const changed =
-            title !== list.title ||
-            type !== list.type ||
-            color !== list.color ||
-            JSON.stringify(items) !== JSON.stringify(list.items);
-        hasChanges.current = changed;
-    }, [title, items, type, color, list]);
+    // Debounce the content for auto-saving
+    const debouncedTitle = useDebounce(title, 1000);
+    const debouncedItems = useDebounce(items, 1000);
+    const debouncedType = useDebounce(type, 1000);
+    const debouncedColor = useDebounce(color, 1000);
 
-    // Auto-save on blur (click outside)
-    const handleSave = useCallback(() => {
-        if (hasChanges.current) {
+    // Effect to trigger save when debounced values change
+    useEffect(() => {
+        // Skip the very first effect run where debounced values match initial values
+        if (!isInitialized.current) {
+            const matchesInitial =
+                debouncedTitle === initialTitle.current &&
+                JSON.stringify(debouncedItems) === initialItems.current &&
+                debouncedType === initialType.current &&
+                debouncedColor === initialColor.current;
+            if (matchesInitial) {
+                return;
+            }
+            isInitialized.current = true;
+        }
+
+        // Check if actually changed from what's in the list prop
+        const hasChanges =
+            debouncedTitle !== list.title ||
+            debouncedType !== list.type ||
+            debouncedColor !== list.color ||
+            JSON.stringify(debouncedItems) !== JSON.stringify(list.items || []);
+
+        if (hasChanges) {
+            setSaveStatus('saving');
             onSave({
                 id: list.id,
-                title: title.trim() || 'Untitled List',
-                type,
-                items,
-                color,
+                title: debouncedTitle.trim() || 'Untitled List',
+                type: debouncedType,
+                items: debouncedItems,
+                color: debouncedColor,
                 updatedAt: Date.now()
-            });
-            hasChanges.current = false;
+            }, { suppressToast: true });
+            setTimeout(() => setSaveStatus('saved'), 800);
         }
-    }, [list.id, title, type, items, color, onSave]);
+    }, [debouncedTitle, debouncedItems, debouncedType, debouncedColor, list.id, list.title, list.type, list.items, list.color, onSave]);
 
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (cardRef.current && !cardRef.current.contains(event.target as Node)) {
-                handleSave();
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [handleSave]);
 
     // Item handlers
     const handleAddItem = () => {
@@ -136,14 +154,26 @@ const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, o
                             onFocus={scrollInputIntoView}
                             className="flex-1 font-bold text-slate-800 dark:text-white bg-transparent border-none outline-none text-base placeholder:text-slate-300 dark:placeholder:text-slate-600"
                         />
-                        <button
-                            onClick={onTogglePin}
-                            className={`p-1.5 rounded-full transition-colors shrink-0 ${list.pinned ? 'text-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                            </svg>
-                        </button>
+                        <div className="flex items-center gap-1">
+                            {/* Saving Status */}
+                            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-300 ${saveStatus === 'saving' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 opacity-100' : 'opacity-0'}`}>
+                                {saveStatus === 'saving' && (
+                                    <svg className="animate-spin h-2.5 w-2.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                )}
+                                Saving...
+                            </span>
+                            <button
+                                onClick={onTogglePin}
+                                className={`p-1.5 rounded-full transition-colors shrink-0 ${list.pinned ? 'text-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -222,7 +252,7 @@ const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, o
 
                         {/* Expand to Modal */}
                         <button
-                            onClick={(e) => { e.stopPropagation(); handleSave(); onOpenInModal(); }}
+                            onClick={(e) => { e.stopPropagation(); onOpenInModal(); }}
                             className="p-1.5 text-slate-300 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                             title="Open in editor (with drag & drop)"
                         >

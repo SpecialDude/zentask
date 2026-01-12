@@ -265,14 +265,30 @@ const App: React.FC = () => {
             <QuickListDocumentEditor
               list={editingList?.type === 'document' ? editingList : undefined}
               onClose={() => { setIsListModalOpen(false); setEditingList(undefined); }}
-              onSave={(listData) => { saveList(listData); setIsListModalOpen(false); setEditingList(undefined); }}
+              onSave={async (listData, options) => {
+                const savedList = await saveList(listData, options);
+                if (!options?.suppressToast) {
+                  setIsListModalOpen(false);
+                  setEditingList(undefined);
+                } else if (savedList && !editingList) {
+                  setEditingList(savedList);
+                }
+              }}
               onDelete={deleteList}
             />
           ) : (
             <QuickListEditorModal
               list={editingList}
               onClose={() => { setIsListModalOpen(false); setEditingList(undefined); }}
-              onSave={(listData) => { saveList(listData); setIsListModalOpen(false); setEditingList(undefined); }}
+              onSave={async (listData, options) => {
+                const savedList = await saveList(listData, options);
+                if (!options?.suppressToast) {
+                  setIsListModalOpen(false);
+                  setEditingList(undefined);
+                } else if (savedList && !editingList) {
+                  setEditingList(savedList);
+                }
+              }}
               onDelete={deleteList}
             />
           )

@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { QuickList, Block, BlockType } from '../../../types';
 import { QUICK_LIST_COLORS, QuickListDeleteConfirm } from '../index';
 import BlockRow from './BlockRow';
 import BlockTypeMenu from './BlockTypeMenu';
 import { useDocumentEditor } from './useDocumentEditor';
+import { useDebounce } from '../../../hooks';
 
 interface QuickListDocumentEditorProps {
     list?: QuickList;
     onClose: () => void;
-    onSave: (listData: Partial<QuickList>) => void;
+    onSave: (listData: Partial<QuickList>, options?: { suppressToast?: boolean }) => void;
     onDelete: (id: string) => void;
 }
 
@@ -24,6 +25,7 @@ const QuickListDocumentEditor: React.FC<QuickListDocumentEditorProps> = ({
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [showAddMenu, setShowAddMenu] = useState(false);
     const [newBlockId, setNewBlockId] = useState<string | null>(null);
+    const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
     const addButtonRef = useRef<HTMLButtonElement>(null);
 
     const {
@@ -36,6 +38,9 @@ const QuickListDocumentEditor: React.FC<QuickListDocumentEditorProps> = ({
         toggleCheck
     } = useDocumentEditor({ initialBlocks: list?.blocks || [] });
 
+    const isFirstRender = useRef(true);
+
+    // Focus title on new doc
     useEffect(() => {
         if (!list) {
             const timer = setTimeout(() => document.getElementById('doc-title-input')?.focus(), 100);
@@ -49,7 +54,94 @@ const QuickListDocumentEditor: React.FC<QuickListDocumentEditorProps> = ({
         setTimeout(() => setNewBlockId(null), 100);
     };
 
-    const handleSave = () => {
+    // Calculate number indices for numbered blocks (each sequence starts from 1)
+    const numberIndices = useMemo(() => {
+        const indices: Record<string, number> = {};
+        let counter = 0;
+        blocks.forEach((block, i) => {
+            if (block.type === 'numbered') {
+                const prevBlock = blocks[i - 1];
+                // Reset counter if previous block is not numbered
+                if (!prevBlock || prevBlock.type !== 'numbered') {
+                    counter = 1;
+                } else {
+                    counter++;
+                }
+                indices[block.id] = counter;
+            }
+        });
+        return indices;
+    }, [blocks]);
+
+    // Handle initial save/create logic isn't debounced, but updates are.
+    // However, since we might be creating a NEW list, we shouldn't save to DB until "Save" is clicked initially?
+    // User expectation for "Quick Note" is usually implicit creation.
+    // If 'list' exists, we are editing -> Auto-save.
+    // If 'list' is undefined, we are creating -> Logic usually waits for save, but we can make it auto-save if title exists?
+    // For now, let's keep creation manual "Save", but editing as Auto-save?
+    // Actually, user said "autosave is not okay... lost a lot of notes".
+    // So assume we should auto-save even new ones if they are substantial?
+    // Let's implement auto-save for EXISTING lists (ID exists).
+    // For NEW lists, we can't update by ID yet. So keep manual for creation or handle creation.
+    // Assuming 'list' prop presence means it's an edit.
+
+    const canAutoSave = !!list?.id;
+    const debouncedTitle = useDebounce(title, 1000);
+    const debouncedBlocks = useDebounce(blocks, 1000);
+    const debouncedColor = useDebounce(color, 1000);
+    const debouncedPinned = useDebounce(pinned, 1000);
+
+
+    // Auto-save Effect
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+
+        if (!canAutoSave) return;
+
+        const hasChanges =
+            debouncedTitle !== list?.title ||
+            JSON.stringify(debouncedBlocks) !== JSON.stringify(list?.blocks || []) ||
+            debouncedColor !== list?.color ||
+            debouncedPinned !== list?.pinned;
+
+        if (hasChanges) {
+            setSaveStatus('saving');
+            onSave({
+                id: list!.id,
+                title: debouncedTitle.trim() || 'Untitled Document',
+                blocks: debouncedBlocks,
+                color: debouncedColor,
+                pinned: debouncedPinned,
+                updatedAt: Date.now()
+            }, { suppressToast: true });
+            setTimeout(() => setSaveStatus('saved'), 800);
+        }
+    }, [
+        debouncedTitle, debouncedBlocks, debouncedColor, debouncedPinned,
+        list?.title, list?.blocks, list?.color, list?.pinned, list?.id,
+        canAutoSave, onSave
+    ]);
+
+    // Immediate "Saving..." feedback
+    useEffect(() => {
+        if (!canAutoSave) return;
+
+        const hasChanges =
+            title !== list?.title ||
+            JSON.stringify(blocks) !== JSON.stringify(list?.blocks || []) ||
+            color !== list?.color ||
+            pinned !== list?.pinned;
+
+        if (hasChanges && saveStatus === 'saved') {
+            setSaveStatus('saving');
+        }
+    }, [title, blocks, color, pinned, list, saveStatus, canAutoSave]);
+
+
+    const handleManualSave = () => {
         if (!title.trim() && blocks.length === 0) {
             onClose();
             return;
@@ -84,51 +176,52 @@ const QuickListDocumentEditor: React.FC<QuickListDocumentEditorProps> = ({
                             type="text"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            placeholder="Document Title"
-                            className="text-xl md:text-2xl font-bold bg-transparent border-none outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600 w-full text-slate-800 dark:text-white"
+                            placeholder="Document title"
+                            className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white bg-transparent border-none outline-none w-full placeholder:text-slate-300 dark:placeholder:text-slate-600"
                         />
-                        <span className="inline-flex items-center gap-1 text-xs text-slate-400 mt-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                            </svg>
-                            Document
-                        </span>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-slate-400 font-medium">Document</span>
+                            {/* Save Status (only if editing existing) */}
+                            {canAutoSave && (
+                                <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-300 ${saveStatus === 'saving' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 opacity-100' : 'opacity-0'}`}>
+                                    {saveStatus === 'saving' && (
+                                        <svg className="animate-spin h-2.5 w-2.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    )}
+                                    {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
+                                </span>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2 ml-4">
+                    <div className="flex items-center gap-2">
                         <button
                             onClick={() => setPinned(!pinned)}
-                            className={`p-2 rounded-xl transition-colors ${pinned ? 'bg-amber-100 text-amber-500' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400'}`}
-                            title="Pin Document"
+                            className={`p-2 rounded-xl transition-all ${pinned
+                                ? 'bg-amber-100 text-amber-500 dark:bg-amber-900/30'
+                                : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                            title={pinned ? 'Unpin' : 'Pin'}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                             </svg>
                         </button>
-                        <button
-                            onClick={onClose}
-                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
                     </div>
                 </div>
 
-                {/* Toolbar */}
-                <div className="px-4 py-2 md:px-6 md:py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 shrink-0">
-                    {/* Color Picker */}
-                    <div className="flex items-center gap-1.5">
-                        {QUICK_LIST_COLORS.map(c => (
-                            <button
-                                key={c.hex}
-                                onClick={() => setColor(c.hex)}
-                                className={`w-6 h-6 rounded-full transition-all ${color === c.hex ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 scale-110' : 'hover:scale-110 opacity-70 hover:opacity-100'}`}
-                                style={{ backgroundColor: c.hex, boxShadow: color === c.hex ? `0 0 0 2px ${c.hex}40` : 'none' }}
-                                title={c.name}
-                            />
-                        ))}
-                    </div>
+                {/* Color Selector Bar */}
+                <div className="px-4 md:px-6 py-2 bg-slate-50/50 dark:bg-slate-800/30 flex gap-2 overflow-x-auto custom-scrollbar shrink-0">
+                    {QUICK_LIST_COLORS.map(c => (
+                        <button
+                            key={c.hex}
+                            onClick={() => setColor(c.hex)}
+                            className={`w-6 h-6 rounded-full transition-all ${color === c.hex ? 'ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 scale-110' : 'hover:scale-110 opacity-70 hover:opacity-100'}`}
+                            style={{ backgroundColor: c.hex, boxShadow: color === c.hex ? `0 0 0 2px ${c.hex}40` : 'none' }}
+                            title={c.name}
+                        />
+                    ))}
                 </div>
 
                 {/* Content Area */}
@@ -141,6 +234,7 @@ const QuickListDocumentEditor: React.FC<QuickListDocumentEditorProps> = ({
                             key={block.id}
                             block={block}
                             index={index}
+                            numberIndex={numberIndices[block.id]}
                             onUpdate={updateBlock}
                             onDelete={deleteBlock}
                             onAddBlock={handleAddBlock}
@@ -192,13 +286,13 @@ const QuickListDocumentEditor: React.FC<QuickListDocumentEditorProps> = ({
                             onClick={onClose}
                             className="px-6 py-2 rounded-xl text-slate-500 font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                         >
-                            Cancel
+                            {canAutoSave ? 'Close' : 'Cancel'}
                         </button>
                         <button
-                            onClick={handleSave}
+                            onClick={handleManualSave}
                             className="px-6 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all"
                         >
-                            Save
+                            {canAutoSave ? 'Done' : 'Save'}
                         </button>
                     </div>
                 </div>
@@ -207,7 +301,7 @@ const QuickListDocumentEditor: React.FC<QuickListDocumentEditorProps> = ({
             {/* Delete Confirmation */}
             {isDeleteConfirmOpen && (
                 <QuickListDeleteConfirm
-                    title={title || 'Untitled Document'}
+                    title={title}
                     onCancel={() => setIsDeleteConfirmOpen(false)}
                     onConfirm={() => {
                         if (list) onDelete(list.id);

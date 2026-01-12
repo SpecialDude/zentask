@@ -1,13 +1,14 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { QuickList, Block, BlockType } from '../../../types';
 import { getQuickListBorderColor, QuickListColorPicker, QuickListDeleteConfirm } from '../index';
 import BlockRow from './BlockRow';
 import BlockTypeMenu from './BlockTypeMenu';
 import { useDocumentEditor } from './useDocumentEditor';
+import { useDebounce } from '../../../hooks';
 
 interface QuickListDocumentCardProps {
     list: QuickList;
-    onSave: (listData: Partial<QuickList>) => void;
+    onSave: (listData: Partial<QuickList>, options?: { suppressToast?: boolean }) => void;
     onDelete: (id: string) => void;
     onTogglePin: (e: React.MouseEvent) => void;
     onOpenInModal: () => void;
@@ -24,6 +25,8 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [showAddMenu, setShowAddMenu] = useState(false);
     const [newBlockId, setNewBlockId] = useState<string | null>(null);
+    const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+    const addButtonRef = useRef<HTMLButtonElement>(null);
 
     const {
         blocks,
@@ -37,51 +40,81 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
     } = useDocumentEditor({ initialBlocks: list.blocks || [] });
 
     const cardRef = useRef<HTMLDivElement>(null);
-    const hasChanges = useRef(false);
+    const isInitialized = useRef(false);
+    const initialTitle = useRef(list.title);
+    const initialBlocks = useRef(JSON.stringify(list.blocks || []));
 
-    // Sync with prop changes
+    // Debounce the content for auto-saving
+    const debouncedTitle = useDebounce(title, 1000);
+    const debouncedBlocks = useDebounce(blocks, 1000);
+
+    // Effect to trigger save when debounced values change
     useEffect(() => {
-        setTitle(list.title);
-        setBlocks(list.blocks || []);
-        hasChanges.current = false;
-    }, [list.id, list.updatedAt, setBlocks]);
+        // Skip the very first effect run where debounced values match initial values
+        if (!isInitialized.current) {
+            if (debouncedTitle === initialTitle.current &&
+                JSON.stringify(debouncedBlocks) === initialBlocks.current) {
+                return;
+            }
+            isInitialized.current = true;
+        }
 
-    // Track changes
-    useEffect(() => {
-        const changed =
-            title !== list.title ||
-            JSON.stringify(blocks) !== JSON.stringify(list.blocks || []);
-        hasChanges.current = changed;
-    }, [title, blocks, list]);
+        // Check if actually changed from what's in the list prop
+        const hasChanges =
+            debouncedTitle !== list.title ||
+            JSON.stringify(debouncedBlocks) !== JSON.stringify(list.blocks || []);
 
-    // Auto-save on blur
-    const handleSave = useCallback(() => {
-        if (hasChanges.current) {
+        if (hasChanges) {
+            setSaveStatus('saving');
             onSave({
                 id: list.id,
-                title: title.trim() || 'Untitled Document',
-                blocks,
+                title: debouncedTitle.trim() || 'Untitled Document',
+                blocks: debouncedBlocks,
                 updatedAt: Date.now()
-            });
-            hasChanges.current = false;
+            }, { suppressToast: true });
+            setTimeout(() => setSaveStatus('saved'), 800);
         }
-    }, [list.id, title, blocks, onSave]);
+    }, [debouncedTitle, debouncedBlocks, list.id, list.title, list.blocks, onSave]);
 
+
+    // Auto-save on unmount as cleanup
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (cardRef.current && !cardRef.current.contains(event.target as Node)) {
-                handleSave();
+        return () => {
+            if (title !== list.title || JSON.stringify(blocks) !== JSON.stringify(list.blocks || [])) {
+                onSave({
+                    id: list.id,
+                    title: title.trim() || 'Untitled Document',
+                    blocks,
+                    updatedAt: Date.now()
+                }, { suppressToast: true });
             }
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [handleSave]);
+    }, []); // Empty dependency array to run only on mount/unmount
+
 
     const handleAddBlock = (type: BlockType, afterId?: string) => {
         const id = addBlock(type, afterId);
         setNewBlockId(id);
         setTimeout(() => setNewBlockId(null), 100);
     };
+
+    // Calculate number indices for numbered blocks (each sequence starts from 1)
+    const numberIndices = useMemo(() => {
+        const indices: Record<string, number> = {};
+        let counter = 0;
+        blocks.forEach((block, i) => {
+            if (block.type === 'numbered') {
+                const prevBlock = blocks[i - 1];
+                if (!prevBlock || prevBlock.type !== 'numbered') {
+                    counter = 1;
+                } else {
+                    counter++;
+                }
+                indices[block.id] = counter;
+            }
+        });
+        return indices;
+    }, [blocks]);
 
     const formatDate = (timestamp: number) => {
         const date = new Date(timestamp);
@@ -100,6 +133,7 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
         <>
             <div
                 ref={cardRef}
+                data-list-id={list.id}
                 className={`group relative bg-white dark:bg-slate-800 rounded-2xl border-l-4 shadow-sm hover:shadow-lg transition-all break-inside-avoid ${getQuickListBorderColor(list.color || '#64748b')}`}
                 style={{ minWidth: '320px' }}
             >
@@ -122,13 +156,26 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
                             </svg>
                         </button>
                     </div>
-                    {/* Document badge */}
-                    <span className="inline-flex items-center gap-1 text-xs text-slate-400 mt-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                        </svg>
-                        Document
-                    </span>
+                    {/* Document badge + Save Status */}
+                    <div className="flex items-center justify-between mt-1">
+                        <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                            </svg>
+                            Document
+                        </span>
+
+                        {/* Save Status Indicator */}
+                        <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-300 ${saveStatus === 'saving' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 opacity-100' : 'opacity-0'}`}>
+                            {saveStatus === 'saving' && (
+                                <svg className="animate-spin h-2.5 w-2.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            )}
+                            Saving...
+                        </div>
+                    </div>
                 </div>
 
                 {/* Blocks */}
@@ -138,6 +185,7 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
                             key={block.id}
                             block={block}
                             index={index}
+                            numberIndex={numberIndices[block.id]}
                             onUpdate={updateBlock}
                             onDelete={deleteBlock}
                             onAddBlock={handleAddBlock}
@@ -152,6 +200,7 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
                     {blocks.length === 0 && (
                         <div className="relative py-2">
                             <button
+                                ref={addButtonRef}
                                 onClick={() => setShowAddMenu(!showAddMenu)}
                                 className="flex items-center gap-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                             >
@@ -164,6 +213,7 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
                                 <BlockTypeMenu
                                     onSelect={(type) => handleAddBlock(type)}
                                     onClose={() => setShowAddMenu(false)}
+                                    buttonRef={addButtonRef}
                                 />
                             )}
                         </div>
@@ -173,6 +223,7 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
                     {blocks.length > 0 && (
                         <div className="relative py-1 pl-7">
                             <button
+                                ref={addButtonRef}
                                 onClick={() => setShowAddMenu(!showAddMenu)}
                                 className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-slate-300 hover:text-slate-500 transition-all text-sm"
                             >
@@ -185,6 +236,7 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
                                 <BlockTypeMenu
                                     onSelect={(type) => handleAddBlock(type)}
                                     onClose={() => setShowAddMenu(false)}
+                                    buttonRef={addButtonRef}
                                 />
                             )}
                         </div>
@@ -206,7 +258,7 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
 
                         {/* Expand to Modal */}
                         <button
-                            onClick={(e) => { e.stopPropagation(); handleSave(); onOpenInModal(); }}
+                            onClick={(e) => { e.stopPropagation(); onOpenInModal(); }}
                             className="p-1.5 text-slate-300 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                             title="Open in editor"
                         >

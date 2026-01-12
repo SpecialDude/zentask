@@ -5,6 +5,7 @@ import BlockTypeMenu from './BlockTypeMenu';
 interface BlockRowProps {
     block: Block;
     index: number;
+    numberIndex?: number;
     onUpdate: (id: string, updates: Partial<Block>) => void;
     onDelete: (id: string) => void;
     onAddBlock: (type: BlockType, afterId: string) => void;
@@ -17,6 +18,7 @@ interface BlockRowProps {
 const BlockRow: React.FC<BlockRowProps> = ({
     block,
     index,
+    numberIndex,
     onUpdate,
     onDelete,
     onAddBlock,
@@ -81,7 +83,7 @@ const BlockRow: React.FC<BlockRowProps> = ({
             case 'bullet':
                 return <span className="text-slate-400 text-lg leading-none shrink-0">•</span>;
             case 'numbered':
-                return <span className="text-xs text-slate-400 font-mono font-bold w-5 text-right shrink-0">{index + 1}.</span>;
+                return <span className="text-xs text-slate-400 font-mono font-bold w-5 text-right shrink-0">{numberIndex ?? (index + 1)}.</span>;
             case 'heading':
                 return <span className="text-slate-400 font-bold text-sm shrink-0">H{block.level || 2}</span>;
             case 'blockquote':

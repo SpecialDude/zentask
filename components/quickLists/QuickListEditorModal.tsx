@@ -10,7 +10,7 @@ import {
 interface QuickListEditorModalProps {
     list?: QuickList;
     onClose: () => void;
-    onSave: (listData: Partial<QuickList>) => void;
+    onSave: (listData: Partial<QuickList>, options?: { suppressToast?: boolean }) => void;
     onDelete: (id: string) => void;
 }
 
