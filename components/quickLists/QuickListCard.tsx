@@ -43,6 +43,7 @@ const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, o
 
     const cardRef = useRef<HTMLDivElement>(null);
     const isInitialized = useRef(false);
+    const isSyncing = useRef(false); // Tracks external sync to prevent stale debounced saves
     const initialTitle = useRef(list.title);
     const initialItems = useRef(JSON.stringify(list.items || []));
     const initialType = useRef(list.type);
@@ -50,6 +51,10 @@ const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, o
 
     // Sync local state when list prop changes (e.g., after modal edit)
     useEffect(() => {
+        // Mark that we're syncing - this prevents the debounced save effect from
+        // saving stale data while debounced values catch up to the new state
+        isSyncing.current = true;
+
         resetToInitial({
             initialTitle: list.title,
             initialItems: list.items,
@@ -63,6 +68,13 @@ const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, o
         initialType.current = list.type;
         initialColor.current = list.color;
         isInitialized.current = false;
+
+        // Clear syncing flag after debounce delay to allow saves again
+        const syncTimeout = setTimeout(() => {
+            isSyncing.current = false;
+        }, 1100); // Slightly longer than debounce delay (1000ms)
+
+        return () => clearTimeout(syncTimeout);
     }, [list.id, list.updatedAt, resetToInitial]);
 
     // Debounce the content for auto-saving
@@ -73,6 +85,12 @@ const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, o
 
     // Effect to trigger save when debounced values change
     useEffect(() => {
+        // Skip saves while syncing from external changes (e.g., modal save)
+        // This prevents stale debounced values from overwriting the correct data
+        if (isSyncing.current) {
+            return;
+        }
+
         // Skip the very first effect run where debounced values match initial values
         if (!isInitialized.current) {
             const matchesInitial =

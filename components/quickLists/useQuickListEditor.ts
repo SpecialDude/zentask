@@ -38,7 +38,9 @@ interface UseQuickListEditorReturn {
 
 export const useQuickListEditor = (options: UseQuickListEditorOptions = {}): UseQuickListEditorReturn => {
     const [title, setTitle] = useState(options.initialTitle || '');
-    const [items, setItems] = useState<ListItem[]>(options.initialItems || []);
+    const [items, setItems] = useState<ListItem[]>(
+        [...(options.initialItems || [])].sort((a, b) => a.order - b.order)
+    );
     const [type, setType] = useState<ListType>(options.initialType || 'bullet');
     const [color, setColor] = useState(options.initialColor || DEFAULT_QUICK_LIST_COLOR);
     const [pinned, setPinned] = useState(options.initialPinned || false);
@@ -81,7 +83,7 @@ export const useQuickListEditor = (options: UseQuickListEditorOptions = {}): Use
 
     const resetToInitial = useCallback((newOptions: UseQuickListEditorOptions) => {
         setTitle(newOptions.initialTitle || '');
-        setItems(newOptions.initialItems || []);
+        setItems([...(newOptions.initialItems || [])].sort((a, b) => a.order - b.order));
         setType(newOptions.initialType || 'bullet');
         setColor(newOptions.initialColor || DEFAULT_QUICK_LIST_COLOR);
         setPinned(newOptions.initialPinned || false);
