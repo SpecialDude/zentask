@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Task, TaskStatus, TaskPriority } from '../../types';
 import { formatDuration, calculateAggregateProgress, scrollInputIntoView } from '../../utils';
 import { getStatusColor, getPriorityConfig } from '../../utils/taskUtils';
@@ -14,17 +14,25 @@ interface TaskItemProps {
   onAddSubtask: (parentId: string) => void;
   onCarryOver: (id: string, newDate: string, reason?: string) => void;
   onExtendSeries: (t: Task) => void;
+  onReparent?: (taskId: string, newParentId: string | null) => void;
   level: number;
+  // Drag state passed from ListView
+  draggedTaskId?: string | null;
+  onDragStart?: (taskId: string) => void;
+  onDragEnd?: () => void;
 }
 
 const TaskItem: React.FC<TaskItemProps> = ({
-  task, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries, level
+  task, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries, onReparent, level,
+  draggedTaskId, onDragStart, onDragEnd
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [showCancelPrompt, setShowCancelPrompt] = useState(false);
   const [showCarryPrompt, setShowCarryPrompt] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [carryReason, setCarryReason] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
+  const wasDragged = useRef(false);
 
   const tomorrowStr = useMemo(() => {
     const d = new Date(task.date);
@@ -84,13 +92,81 @@ const TaskItem: React.FC<TaskItemProps> = ({
     setCarryDate(d.toISOString().split('T')[0]);
   };
 
+  // Check if dropping would create circular reference
+  const isDescendant = useMemo(() => {
+    if (!draggedTaskId) return false;
+    const checkDescendant = (parentId: string | null): boolean => {
+      if (!parentId) return false;
+      if (parentId === draggedTaskId) return true;
+      const parent = allTasks.find(t => t.id === parentId);
+      return parent ? checkDescendant(parent.parentId) : false;
+    };
+    return checkDescendant(task.parentId) || task.id === draggedTaskId;
+  }, [draggedTaskId, task, allTasks]);
+
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('taskId', task.id);
+    e.dataTransfer.effectAllowed = 'move';
+    wasDragged.current = true;
+    onDragStart?.(task.id);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (draggedTaskId && draggedTaskId !== task.id && !isDescendant) {
+      e.dataTransfer.dropEffect = 'move';
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const droppedTaskId = e.dataTransfer.getData('taskId');
+    if (droppedTaskId && droppedTaskId !== task.id && onReparent && !isDescendant) {
+      onReparent(droppedTaskId, task.id);
+    }
+    onDragEnd?.();
+  };
+
+  const handleDragEnd = () => {
+    onDragEnd?.();
+    // Reset wasDragged after a short delay to prevent onClick from firing
+    setTimeout(() => { wasDragged.current = false; }, 0);
+  };
+
+  const isDragging = draggedTaskId === task.id;
+
   return (
     <div className={`flex flex-col ${level > 0 ? 'ml-4 md:ml-8 mt-2 border-l-2 border-slate-100 dark:border-slate-800 pl-4' : ''}`}>
       <div
-        onClick={() => onViewTask(task)}
-        className={`group relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 md:p-4 transition-all shadow-sm hover:shadow-md cursor-pointer ${task.status === TaskStatus.CANCELLED || task.carriedOverTo ? 'opacity-60' : ''}`}
+        draggable={!task.carriedOverTo}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => { if (!wasDragged.current) onViewTask(task); }}
+        className={`group relative bg-white dark:bg-slate-900 border-2 rounded-2xl p-3 md:p-4 transition-all shadow-sm hover:shadow-md cursor-pointer
+          ${task.status === TaskStatus.CANCELLED || task.carriedOverTo ? 'opacity-60' : ''}
+          ${isDragging ? 'opacity-50 border-dashed border-primary' : 'border-slate-200 dark:border-slate-800'}
+          ${isDragOver && !isDescendant ? 'ring-2 ring-primary ring-offset-2 border-primary' : ''}
+        `}
       >
         <div className="flex items-start gap-3 md:gap-4">
+          {/* Drag Handle */}
+          <div
+            className="mt-1 text-slate-300 dark:text-slate-600 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M7 2a2 2 0 10-4 0 2 2 0 004 0zM7 10a2 2 0 10-4 0 2 2 0 004 0zM7 18a2 2 0 10-4 0 2 2 0 004 0zM14 2a2 2 0 10-4 0 2 2 0 004 0zM14 10a2 2 0 10-4 0 2 2 0 004 0zM14 18a2 2 0 10-4 0 2 2 0 004 0z" />
+            </svg>
+          </div>
           <button
             disabled={!!task.carriedOverTo}
             onClick={(e) => { e.stopPropagation(); handleStatusToggle(); }}
@@ -281,7 +357,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
               onAddSubtask={onAddSubtask}
               onCarryOver={onCarryOver}
               onExtendSeries={onExtendSeries}
+              onReparent={onReparent}
               level={level + 1}
+              draggedTaskId={draggedTaskId}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
             />
           ))}
         </div>
