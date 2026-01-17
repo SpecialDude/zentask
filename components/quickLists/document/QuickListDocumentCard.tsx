@@ -173,100 +173,109 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
                             placeholder="Document title..."
                             className="flex-1 font-bold text-slate-800 dark:text-white bg-transparent border-none outline-none text-lg placeholder:text-slate-300 dark:placeholder:text-slate-600"
                         />
-                        <button
-                            onClick={onTogglePin}
-                            className={`p-1.5 rounded-full transition-colors shrink-0 ${list.pinned ? 'text-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                            </svg>
-                        </button>
                     </div>
-                    {/* Document badge + Save Status */}
-                    <div className="flex items-center justify-between mt-1">
-                        <span className="inline-flex items-center gap-1 text-xs text-slate-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                            </svg>
-                            Document
-                        </span>
+                </div>
 
-                        {/* Save Status Indicator */}
-                        <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-300 ${saveStatus === 'saving' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 opacity-100' : 'opacity-0'}`}>
-                            {saveStatus === 'saving' && (
-                                <svg className="animate-spin h-2.5 w-2.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            )}
-                            Saving...
-                        </div>
+                {/* Absolute Pin Button */}
+                <button
+                    onClick={onTogglePin}
+                    className={`absolute top-4 right-4 p-1.5 rounded-full transition-colors z-10 ${list.pinned ? 'text-amber-400 bg-amber-50 dark:bg-amber-900/20' : 'text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                    </svg>
+                </button>
+
+                {/* Document badge + Save Status */}
+                <div className="flex items-center justify-between mt-1">
+                    <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                        </svg>
+                        Document
+                    </span>
+
+                    {/* Save Status Indicator */}
+                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all duration-300 ${saveStatus === 'saving' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 opacity-100' : 'opacity-0'}`}>
+                        {saveStatus === 'saving' && (
+                            <svg className="animate-spin h-2.5 w-2.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        )}
+                        Saving...
                     </div>
                 </div>
 
                 {/* Blocks */}
                 <div className="px-4 pb-2">
-                    {blocks.map((block, index) => (
-                        <BlockRow
-                            key={block.id}
-                            block={block}
-                            index={index}
-                            numberIndex={numberIndices[block.id]}
-                            onUpdate={updateBlock}
-                            onDelete={deleteBlock}
-                            onAddBlock={handleAddBlock}
-                            onIndent={indentBlock}
-                            onOutdent={outdentBlock}
-                            onToggleCheck={toggleCheck}
-                            autoFocus={block.id === newBlockId}
-                        />
-                    ))}
+                    {
+                        blocks.map((block, index) => (
+                            <BlockRow
+                                key={block.id}
+                                block={block}
+                                index={index}
+                                numberIndex={numberIndices[block.id]}
+                                onUpdate={updateBlock}
+                                onDelete={deleteBlock}
+                                onAddBlock={handleAddBlock}
+                                onIndent={indentBlock}
+                                onOutdent={outdentBlock}
+                                onToggleCheck={toggleCheck}
+                                autoFocus={block.id === newBlockId}
+                            />
+                        ))
+                    }
 
                     {/* Add first block button */}
-                    {blocks.length === 0 && (
-                        <div className="relative py-2">
-                            <button
-                                ref={addButtonRef}
-                                onClick={() => setShowAddMenu(!showAddMenu)}
-                                className="flex items-center gap-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-sm">Add content...</span>
-                            </button>
-                            {showAddMenu && (
-                                <BlockTypeMenu
-                                    onSelect={(type) => handleAddBlock(type)}
-                                    onClose={() => setShowAddMenu(false)}
-                                    buttonRef={addButtonRef}
-                                />
-                            )}
-                        </div>
-                    )}
+                    {
+                        blocks.length === 0 && (
+                            <div className="relative py-2">
+                                <button
+                                    ref={addButtonRef}
+                                    onClick={() => setShowAddMenu(!showAddMenu)}
+                                    className="flex items-center gap-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="text-sm">Add content...</span>
+                                </button>
+                                {showAddMenu && (
+                                    <BlockTypeMenu
+                                        onSelect={(type) => handleAddBlock(type)}
+                                        onClose={() => setShowAddMenu(false)}
+                                        buttonRef={addButtonRef}
+                                    />
+                                )}
+                            </div>
+                        )
+                    }
 
                     {/* Add block at end */}
-                    {blocks.length > 0 && (
-                        <div className="relative py-1 pl-7">
-                            <button
-                                ref={addButtonRef}
-                                onClick={() => setShowAddMenu(!showAddMenu)}
-                                className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-slate-300 hover:text-slate-500 transition-all text-sm"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                                </svg>
-                                Add block
-                            </button>
-                            {showAddMenu && (
-                                <BlockTypeMenu
-                                    onSelect={(type) => handleAddBlock(type)}
-                                    onClose={() => setShowAddMenu(false)}
-                                    buttonRef={addButtonRef}
-                                />
-                            )}
-                        </div>
-                    )}
+                    {
+                        blocks.length > 0 && (
+                            <div className="relative py-1 pl-7">
+                                <button
+                                    ref={addButtonRef}
+                                    onClick={() => setShowAddMenu(!showAddMenu)}
+                                    className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-slate-300 hover:text-slate-500 transition-all text-sm"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                    </svg>
+                                    Add block
+                                </button>
+                                {showAddMenu && (
+                                    <BlockTypeMenu
+                                        onSelect={(type) => handleAddBlock(type)}
+                                        onClose={() => setShowAddMenu(false)}
+                                        buttonRef={addButtonRef}
+                                    />
+                                )}
+                            </div>
+                        )
+                    }
                 </div>
 
                 {/* Footer */}
@@ -308,16 +317,18 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
             </div>
 
             {/* Delete Confirmation */}
-            {isDeleteConfirmOpen && (
-                <QuickListDeleteConfirm
-                    title={title}
-                    onCancel={() => setIsDeleteConfirmOpen(false)}
-                    onConfirm={() => {
-                        onDelete(list.id);
-                        setIsDeleteConfirmOpen(false);
-                    }}
-                />
-            )}
+            {
+                isDeleteConfirmOpen && (
+                    <QuickListDeleteConfirm
+                        title={title}
+                        onCancel={() => setIsDeleteConfirmOpen(false)}
+                        onConfirm={() => {
+                            onDelete(list.id);
+                            setIsDeleteConfirmOpen(false);
+                        }}
+                    />
+                )
+            }
         </>
     );
 };
