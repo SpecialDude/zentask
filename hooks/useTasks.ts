@@ -98,10 +98,41 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
 
         const finalUpdates = taskService.normalizeStatusAndCompletion(originalTask, updates);
 
+        // Check for completion transition
+        const wasNotCompleted = originalTask.status !== TaskStatus.COMPLETED;
+        const isNowCompleted = finalUpdates.status === TaskStatus.COMPLETED ||
+            (finalUpdates.completion !== undefined && finalUpdates.completion >= 100);
+
+        // Prepare descendant updates if completing parent
+        let descendantsToUpdate: string[] = [];
+        if (wasNotCompleted && isNowCompleted) {
+            const getDescendants = (parentId: string): string[] => {
+                const children = tasks.filter(t => t.parentId === parentId && t.date === originalTask.date);
+                let result = children.map(c => c.id);
+                children.forEach(c => result = [...result, ...getDescendants(c.id)]);
+                return result;
+            };
+            descendantsToUpdate = getDescendants(id);
+        }
+
+        // 1. Update the main task
         const { error } = await supabase.from('tasks').update({ ...finalUpdates, updatedAt: Date.now() }).eq('id', id);
         if (error) {
             console.error('Error updating task:', error);
             return;
+        }
+
+        // 2. Update descendants if needed
+        if (descendantsToUpdate.length > 0) {
+            const { error: descError } = await supabase
+                .from('tasks')
+                .update({ status: TaskStatus.COMPLETED, completion: 100, updatedAt: Date.now() })
+                .in('id', descendantsToUpdate);
+
+            if (descError) {
+                console.error('Error updating descendants:', descError);
+                showToast('Task completed, but failed to update subtasks', 'error');
+            }
         }
 
         let addedRecurringInstances: Task[] = [];
@@ -136,7 +167,19 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
 
         setTasks(prev => {
             let currentPool = updatedTreeInLocal.length > 0 ? updatedTreeInLocal : prev;
+
+            // Apply main task update
             let updated = currentPool.map(t => t.id === id ? { ...t, ...finalUpdates, updatedAt: Date.now() } : t);
+
+            // Apply descendant updates
+            if (descendantsToUpdate.length > 0) {
+                updated = updated.map(t =>
+                    descendantsToUpdate.includes(t.id)
+                        ? { ...t, status: TaskStatus.COMPLETED, completion: 100, updatedAt: Date.now() }
+                        : t
+                );
+            }
+
             if (addedRecurringInstances.length > 0) {
                 updated = [...updated, ...addedRecurringInstances];
             }
@@ -160,10 +203,6 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
         });
 
         // Handle completion callback
-        const wasNotCompleted = originalTask.status !== TaskStatus.COMPLETED;
-        const isNowCompleted = finalUpdates.status === TaskStatus.COMPLETED ||
-            (finalUpdates.completion !== undefined && finalUpdates.completion >= 100);
-
         if (wasNotCompleted && isNowCompleted) {
             const completedTask = { ...originalTask, ...finalUpdates, updatedAt: Date.now() };
             if (onTaskCompleted) {

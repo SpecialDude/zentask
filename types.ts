@@ -84,3 +84,14 @@ export interface QuickList {
   createdAt: number;
   updatedAt: number;
 }
+
+export type FeedbackCategory = 'bug' | 'general' | 'question' | 'feature';
+
+export interface Feedback {
+  id: string;
+  user_id?: string;
+  category: FeedbackCategory;
+  message: string;
+  email?: string;
+  created_at: string;
+}
