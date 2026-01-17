@@ -1,17 +1,33 @@
 import React, { useState, useEffect } from 'react';
+import FeedbackModal from '../feedback/FeedbackModal';
 
 interface LandingPageProps {
     onGetStarted: () => void;
     isSignedIn?: boolean;
     onGoToApp?: () => void;
+    userId?: string;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onGoToApp }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onGoToApp, userId }) => {
     const [isScrolled, setIsScrolled] = useState(false);
     const [activeScreenshot, setActiveScreenshot] = useState(0);
+    const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+    const [isButtonVisible, setIsButtonVisible] = useState(true);
+    const lastScrollY = React.useRef(0);
 
     useEffect(() => {
-        const handleScroll = () => setIsScrolled(window.scrollY > 50);
+        const handleScroll = () => {
+            const currentScrollY = window.scrollY;
+            setIsScrolled(currentScrollY > 50);
+
+            // Hide button on scroll down, show on scroll up (mobile behavior)
+            if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+                setIsButtonVisible(false);
+            } else {
+                setIsButtonVisible(true);
+            }
+            lastScrollY.current = currentScrollY;
+        };
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
@@ -374,6 +390,24 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
                     </div>
                 </div>
             </footer>
+            {/* Feedback Button & Modal */}
+            <button
+                onClick={() => setIsFeedbackOpen(true)}
+                className={`fixed bottom-4 right-4 md:bottom-6 md:right-6 z-40 px-3 py-2 md:px-4 md:py-3 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md text-slate-600 dark:text-slate-300 text-sm md:text-base font-medium rounded-full shadow-lg border border-slate-200 dark:border-slate-700 hover:scale-105 hover:text-purple-600 dark:hover:text-purple-400 hover:border-purple-200 dark:hover:border-purple-800 transition-all duration-300 flex items-center gap-2 group ${isButtonVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'}`}
+            >
+                <span className="bg-purple-100 dark:bg-purple-900/50 p-1.5 rounded-full group-hover:bg-purple-200 dark:group-hover:bg-purple-800 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-600 dark:text-purple-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                    </svg>
+                </span>
+                Feedback
+            </button>
+
+            <FeedbackModal
+                isOpen={isFeedbackOpen}
+                onClose={() => setIsFeedbackOpen(false)}
+                userId={userId}
+            />
         </div>
     );
 };

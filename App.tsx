@@ -175,6 +175,7 @@ const App: React.FC = () => {
         onGetStarted={() => navigateTo(session ? 'app' : 'login')}
         isSignedIn={!!session}
         onGoToApp={() => navigateTo('app')}
+        userId={session?.user?.id}
       />
     );
   }
