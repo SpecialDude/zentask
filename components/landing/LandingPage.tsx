@@ -13,7 +13,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
     const [activeScreenshot, setActiveScreenshot] = useState(0);
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [isButtonVisible, setIsButtonVisible] = useState(true);
+    const [isHowItWorksVisible, setIsHowItWorksVisible] = useState(false);
     const lastScrollY = React.useRef(0);
+    const howItWorksRef = React.useRef<HTMLElement>(null);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -38,6 +40,24 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
             setActiveScreenshot(prev => (prev + 1) % 3);
         }, 4000);
         return () => clearInterval(interval);
+    }, []);
+
+    // Intersection Observer for How It Works section
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsHowItWorksVisible(true);
+                }
+            },
+            { threshold: 0.2 }
+        );
+
+        if (howItWorksRef.current) {
+            observer.observe(howItWorksRef.current);
+        }
+
+        return () => observer.disconnect();
     }, []);
 
     const features = [
@@ -318,7 +338,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
             </section>
 
             {/* How It Works Section */}
-            <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30">
+            <section ref={howItWorksRef} className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30">
                 <div className="max-w-7xl mx-auto">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white mb-4">
@@ -331,20 +351,35 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
 
                     <div className="grid md:grid-cols-3 gap-8">
                         {steps.map((item, index) => (
-                            <div key={index} className="relative">
+                            <div
+                                key={index}
+                                className={`relative transition-all duration-700 ${isHowItWorksVisible
+                                        ? 'opacity-100 translate-y-0'
+                                        : 'opacity-0 translate-y-8'
+                                    }`}
+                                style={{ transitionDelay: `${index * 200}ms` }}
+                            >
+                                {/* Connecting Line with Draw Animation */}
                                 {index < steps.length - 1 && (
-                                    <div className="hidden md:block absolute top-8 left-[60%] w-full h-0.5 bg-gradient-to-r from-purple-300 to-transparent dark:from-purple-700"></div>
+                                    <div
+                                        className={`hidden md:block absolute top-8 left-[60%] h-0.5 bg-gradient-to-r from-purple-300 to-transparent dark:from-purple-700 transition-all duration-1000 ease-out origin-left ${isHowItWorksVisible ? 'w-full scale-x-100' : 'w-0 scale-x-0'
+                                            }`}
+                                        style={{ transitionDelay: `${(index + 1) * 300 + 200}ms` }}
+                                    ></div>
                                 )}
-                                <div className="text-center">
-                                    <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                                {/* Step Card with Hover Lift */}
+                                <div className="text-center group cursor-default">
+                                    <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-purple-500/30 transition-all duration-300">
                                         {item.step}
                                     </div>
-                                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
-                                        {item.title}
-                                    </h3>
-                                    <p className="text-slate-600 dark:text-slate-400">
-                                        {item.description}
-                                    </p>
+                                    <div className="group-hover:-translate-y-1 transition-transform duration-300">
+                                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                                            {item.title}
+                                        </h3>
+                                        <p className="text-slate-600 dark:text-slate-400">
+                                            {item.description}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         ))}
