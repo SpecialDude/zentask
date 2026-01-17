@@ -41,8 +41,31 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
 
     const cardRef = useRef<HTMLDivElement>(null);
     const isInitialized = useRef(false);
+    const isSyncing = useRef(false); // Tracks external sync to prevent stale debounced saves
     const initialTitle = useRef(list.title);
     const initialBlocks = useRef(JSON.stringify(list.blocks || []));
+
+    // Sync local state when list prop changes (e.g., after modal edit)
+    useEffect(() => {
+        // Mark that we're syncing - this prevents the debounced save effect from
+        // saving stale data while debounced values catch up to the new state
+        isSyncing.current = true;
+
+        setTitle(list.title);
+        setBlocks(list.blocks || []);
+
+        // Update initial refs
+        initialTitle.current = list.title;
+        initialBlocks.current = JSON.stringify(list.blocks || []);
+        isInitialized.current = false;
+
+        // Clear syncing flag after debounce delay to allow saves again
+        const syncTimeout = setTimeout(() => {
+            isSyncing.current = false;
+        }, 1100); // Slightly longer than debounce delay (1000ms)
+
+        return () => clearTimeout(syncTimeout);
+    }, [list.id, list.updatedAt, setBlocks]);
 
     // Debounce the content for auto-saving
     const debouncedTitle = useDebounce(title, 1000);
@@ -50,6 +73,9 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
 
     // Effect to trigger save when debounced values change
     useEffect(() => {
+        // Skip if syncing from external update (e.g., modal edit)
+        if (isSyncing.current) return;
+
         // Skip the very first effect run where debounced values match initial values
         if (!isInitialized.current) {
             if (debouncedTitle === initialTitle.current &&
