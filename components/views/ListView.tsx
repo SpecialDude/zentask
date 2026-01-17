@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Task, TaskStatus, TaskPriority } from '../../types';
 import { TaskItem } from '../tasks';
 
@@ -13,15 +13,64 @@ interface ListViewProps {
   onAddSubtask: (parentId: string) => void;
   onCarryOver: (id: string, newDate: string) => void;
   onExtendSeries: (t: Task) => void;
+  onReparent?: (taskId: string, newParentId: string | null) => void;
 }
 
 type SortMode = 'SMART' | 'PRIORITY' | 'TIME' | 'STATUS';
 
 const ListView: React.FC<ListViewProps> = ({
-  tasks, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries
+  tasks, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries, onReparent
 }) => {
   const [sortMode, setSortMode] = useState<SortMode>('SMART');
   const [hideCompleted, setHideCompleted] = useState(false);
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [isRootDropZoneActive, setIsRootDropZoneActive] = useState(false);
+
+  const scrollIntervalRef = useRef<number | null>(null);
+
+  // Auto-scroll when dragging near edges
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!draggedTaskId) return;
+
+    const scrollContainer = document.querySelector('.custom-scrollbar') as HTMLElement;
+    if (!scrollContainer) return;
+
+    const rect = scrollContainer.getBoundingClientRect();
+    const scrollSpeed = 10;
+    const edgeThreshold = 80;
+
+    // Clear any existing scroll interval
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+
+    // Scroll up if near top
+    if (e.clientY < rect.top + edgeThreshold) {
+      scrollIntervalRef.current = window.setInterval(() => {
+        scrollContainer.scrollTop -= scrollSpeed;
+      }, 16);
+    }
+    // Scroll down if near bottom
+    else if (e.clientY > rect.bottom - edgeThreshold) {
+      scrollIntervalRef.current = window.setInterval(() => {
+        scrollContainer.scrollTop += scrollSpeed;
+      }, 16);
+    }
+  }, [draggedTaskId]);
+
+  // Cleanup scroll interval on drag end
+  useEffect(() => {
+    if (!draggedTaskId && scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+    return () => {
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+      }
+    };
+  }, [draggedTaskId]);
 
   // Check if a task hierarchy is fully completed
   const isFullyCompleted = (task: Task): boolean => {
@@ -54,7 +103,6 @@ const ListView: React.FC<ListViewProps> = ({
 
   // Sort function based on selected mode
   const sortTasks = (a: Task, b: Task): number => {
-    // Tasks without time go to bottom of their group
     const aHasTime = !!a.startTime;
     const bHasTime = !!b.startTime;
 
@@ -77,7 +125,6 @@ const ListView: React.FC<ListViewProps> = ({
 
       case 'SMART':
       default:
-        // Smart sort: Status → Priority → Time → Creation
         const smartStatusDiff = getStatusWeight(a.status) - getStatusWeight(b.status);
         if (smartStatusDiff !== 0) return smartStatusDiff;
         const smartPriorityDiff = getPriorityWeight(b.priority) - getPriorityWeight(a.priority);
@@ -91,12 +138,9 @@ const ListView: React.FC<ListViewProps> = ({
   // Filter and sort root tasks
   const sortedRootTasks = useMemo(() => {
     let rootTasks = tasks.filter(t => t.parentId === null);
-
-    // Hide fully completed hierarchies if toggle is on
     if (hideCompleted) {
       rootTasks = rootTasks.filter(t => !isFullyCompleted(t));
     }
-
     return rootTasks.sort(sortTasks);
   }, [tasks, allTasks, sortMode, hideCompleted]);
 
@@ -106,6 +150,32 @@ const ListView: React.FC<ListViewProps> = ({
     { value: 'TIME', label: 'Time', icon: '🕐' },
     { value: 'STATUS', label: 'Status', icon: '📊' },
   ];
+
+  // Root drop zone handlers - for unparenting tasks
+  const handleRootDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (draggedTaskId) {
+      const draggedTask = allTasks.find(t => t.id === draggedTaskId);
+      if (draggedTask?.parentId) {
+        setIsRootDropZoneActive(true);
+        e.dataTransfer.dropEffect = 'move';
+      }
+    }
+  };
+
+  const handleRootDragLeave = () => {
+    setIsRootDropZoneActive(false);
+  };
+
+  const handleRootDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsRootDropZoneActive(false);
+    const droppedTaskId = e.dataTransfer.getData('taskId');
+    if (droppedTaskId && onReparent) {
+      onReparent(droppedTaskId, null);
+    }
+    setDraggedTaskId(null);
+  };
 
   if (sortedRootTasks.length === 0 && !hideCompleted) {
     return (
@@ -120,7 +190,7 @@ const ListView: React.FC<ListViewProps> = ({
   }
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto">
+    <div className="space-y-4 max-w-4xl mx-auto" onDragOver={handleDragOver}>
       {/* Sort & Filter Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6 px-1">
         <div className="flex items-center gap-2">
@@ -160,6 +230,21 @@ const ListView: React.FC<ListViewProps> = ({
         </button>
       </div>
 
+      {/* Root Drop Zone - visible when dragging a subtask */}
+      {draggedTaskId && (
+        <div
+          onDragOver={handleRootDragOver}
+          onDragLeave={handleRootDragLeave}
+          onDrop={handleRootDrop}
+          className={`border-2 border-dashed rounded-xl p-4 text-center text-sm font-medium transition-all ${isRootDropZoneActive
+            ? 'border-primary bg-primary/10 text-primary'
+            : 'border-slate-300 dark:border-slate-600 text-slate-400'
+            }`}
+        >
+          Drop here to make root task
+        </div>
+      )}
+
       {sortedRootTasks.length === 0 && hideCompleted ? (
         <div className="flex flex-col items-center justify-center py-16 text-slate-400">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mb-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -186,7 +271,11 @@ const ListView: React.FC<ListViewProps> = ({
             onAddSubtask={onAddSubtask}
             onCarryOver={onCarryOver}
             onExtendSeries={onExtendSeries}
+            onReparent={onReparent}
             level={0}
+            draggedTaskId={draggedTaskId}
+            onDragStart={setDraggedTaskId}
+            onDragEnd={() => setDraggedTaskId(null)}
           />
         ))
       )}
@@ -195,4 +284,3 @@ const ListView: React.FC<ListViewProps> = ({
 };
 
 export default ListView;
-

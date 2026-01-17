@@ -64,7 +64,8 @@ const App: React.FC = () => {
     carryOverTask,
     extendRecurringSeries,
     endRecurringSeries,
-    handleAIPlanGenerated
+    handleAIPlanGenerated,
+    reparentTask
   } = useTasks({
     userId: session?.user?.id,
     showToast,
@@ -182,6 +183,7 @@ const App: React.FC = () => {
               onAddSubtask={(parentId) => handleOpenModal(undefined, parentId)}
               onCarryOver={carryOverTask}
               onExtendSeries={(t) => setExtendingTask(t)}
+              onReparent={reparentTask}
             />
           ) : viewType === 'SETTINGS' ? (
             <Settings

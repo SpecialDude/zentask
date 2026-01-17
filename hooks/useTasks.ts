@@ -458,6 +458,49 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
         setTasks(prev => [...prev, ...tasksToAdd]);
     }, [userId, showToast]);
 
+    // Reparent a task - change its parentId
+    const reparentTask = useCallback(async (taskId: string, newParentId: string | null) => {
+        if (!userId) return;
+
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        // Prevent circular reference - can't parent to own descendant
+        if (newParentId) {
+            const isDescendant = (parentId: string | null): boolean => {
+                if (!parentId) return false;
+                if (parentId === taskId) return true;
+                const parent = tasks.find(t => t.id === parentId);
+                return parent ? isDescendant(parent.parentId) : false;
+            };
+            if (isDescendant(newParentId)) {
+                showToast('Cannot move task to its own descendant', 'error');
+                return;
+            }
+        }
+
+        // Optimistic update
+        setTasks(prev => prev.map(t =>
+            t.id === taskId ? { ...t, parentId: newParentId, updatedAt: Date.now() } : t
+        ));
+
+        const { error } = await supabase
+            .from('tasks')
+            .update({ parentId: newParentId, updatedAt: Date.now() })
+            .eq('id', taskId);
+
+        if (error) {
+            console.error('Error reparenting task:', error);
+            showToast('Failed to move task', 'error');
+            // Revert
+            setTasks(prev => prev.map(t =>
+                t.id === taskId ? { ...t, parentId: task.parentId } : t
+            ));
+        } else {
+            showToast(newParentId ? 'Task moved' : 'Task made root', 'success');
+        }
+    }, [userId, tasks, showToast]);
+
     return {
         tasks,
         setTasks,
@@ -469,6 +512,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
         extendRecurringSeries,
         endRecurringSeries,
         handleAIPlanGenerated,
-        syncParents
+        syncParents,
+        reparentTask
     };
 }
