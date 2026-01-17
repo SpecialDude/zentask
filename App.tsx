@@ -18,6 +18,7 @@ import { TaskModal, TaskDetailModal, TaskReviewModal, ExtendRecurringModal } fro
 import AIModal from './components/AIModal';
 import Settings from './components/Settings';
 import { QuickListsPage, QuickListEditorModal, QuickListDocumentEditor } from './components/quickLists';
+import { LandingPage } from './components/landing';
 import Auth from './components/Auth';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -33,6 +34,14 @@ const App: React.FC = () => {
   const { session, userName, setUserName, isLoading } = useAuth();
   const { isDarkMode, setIsDarkMode } = useTheme();
   const { viewType, setViewType } = useViewNavigation();
+
+  // Routing state based on URL
+  const [currentRoute, setCurrentRoute] = useState(() => {
+    const path = window.location.pathname;
+    if (path === '/login') return 'login';
+    if (path === '/home') return 'home';
+    return 'app'; // Default to app (dashboard)
+  });
 
   // UI state
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
@@ -133,13 +142,58 @@ const App: React.FC = () => {
     }
   };
 
-  // Auth & loading gates
-  if (!session) return <Auth />;
+  // Navigation handlers
+  const navigateTo = useCallback((route: 'home' | 'login' | 'app') => {
+    const paths = { home: '/home', login: '/login', app: '/' };
+    window.history.pushState({}, '', paths[route]);
+    setCurrentRoute(route);
+  }, []);
+
+  // Handle browser back/forward
+  React.useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path === '/login') setCurrentRoute('login');
+      else if (path === '/home') setCurrentRoute('home');
+      else setCurrentRoute('app');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Loading state
   if (isLoading) return (
     <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
-      <LoadingSpinner size="lg" message="Loading your tasks..." />
+      <LoadingSpinner size="lg" message="Loading..." />
     </div>
   );
+
+  // Route: Home/Landing page (always accessible)
+  if (currentRoute === 'home') {
+    return (
+      <LandingPage
+        onGetStarted={() => navigateTo(session ? 'app' : 'login')}
+        isSignedIn={!!session}
+        onGoToApp={() => navigateTo('app')}
+      />
+    );
+  }
+
+  // Route: Login page
+  if (currentRoute === 'login') {
+    if (session) {
+      // Already signed in, redirect to app
+      navigateTo('app');
+      return null;
+    }
+    return <Auth onSuccess={() => navigateTo('app')} />;
+  }
+
+  // Route: App / Dashboard (requires auth)
+  if (!session) {
+    navigateTo('home'); // Not signed in, go to landing/home
+    return null;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">

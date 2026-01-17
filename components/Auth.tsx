@@ -4,7 +4,11 @@ import { supabase } from '../supabase';
 
 type AuthMode = 'login' | 'signup' | 'forgot-password';
 
-const Auth: React.FC = () => {
+interface AuthProps {
+  onSuccess?: () => void;
+}
+
+const Auth: React.FC<AuthProps> = ({ onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
@@ -28,6 +32,7 @@ const Auth: React.FC = () => {
       } else if (authMode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        onSuccess?.();
       } else if (authMode === 'forgot-password') {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
@@ -64,12 +69,17 @@ const Auth: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
       <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden p-8 space-y-8 animate-in fade-in zoom-in duration-300">
         <div className="text-center space-y-2">
-          <div className="mx-auto w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary/30 mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold">ZenTask</h1>
+          <button
+            onClick={() => { window.location.href = '/home'; }}
+            className="mx-auto block hover:opacity-80 transition-opacity"
+          >
+            <div className="mx-auto w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary/30 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold">ZenTask</h1>
+          </button>
           <p className="text-slate-500 dark:text-slate-400">{getTitle()}</p>
         </div>
 
