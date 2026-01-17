@@ -333,7 +333,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
                         {steps.map((item, index) => (
                             <div key={index} className="relative">
                                 {index < steps.length - 1 && (
-                                    <div className="hidden md:block absolute top-12 left-[60%] w-full h-0.5 bg-gradient-to-r from-purple-300 to-transparent dark:from-purple-700"></div>
+                                    <div className="hidden md:block absolute top-8 left-[60%] w-full h-0.5 bg-gradient-to-r from-purple-300 to-transparent dark:from-purple-700"></div>
                                 )}
                                 <div className="text-center">
                                     <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
