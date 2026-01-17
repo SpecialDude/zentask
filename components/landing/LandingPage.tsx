@@ -148,7 +148,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
                                 onClick={onGetStarted}
                                 className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-lg font-bold rounded-2xl hover:shadow-xl hover:scale-105 transition-all"
                             >
-                                Start Free Today
+                                Start Today
                             </button>
                             <a
                                 href="#features"
@@ -172,7 +172,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
                                 </div>
                                 <div className="flex-1 flex justify-center">
                                     <div className="px-4 py-1 bg-white dark:bg-slate-800 rounded-lg text-xs text-slate-400">
-                                        zentask.app
+                                        zentask.space
                                     </div>
                                 </div>
                             </div>
@@ -344,13 +344,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
                             Ready to Transform Your Productivity?
                         </h2>
                         <p className="text-purple-100 text-lg mb-8 max-w-xl mx-auto">
-                            Join thousands of users who've taken control of their tasks. Start free today.
+                            Join thousands of users who've taken control of their tasks. Start today.
                         </p>
                         <button
                             onClick={onGetStarted}
                             className="px-10 py-4 bg-white text-purple-600 text-lg font-bold rounded-2xl hover:shadow-xl hover:scale-105 transition-all"
                         >
-                            Get Started Free
+                            Get Started
                         </button>
                     </div>
                 </div>
