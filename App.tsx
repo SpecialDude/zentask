@@ -142,6 +142,17 @@ const App: React.FC = () => {
     }
   };
 
+  const onMoveTask = async (listId, itemId, content, date) => {
+    if (!content || !date) return false;
+    try {
+      await addTask({ title: content, description: '', date, status: TaskStatus.TODO, completion: 0 } as any);
+      return true;
+    } catch (err) {
+      console.error('Failed to move item to date:', err);
+      return false;
+    }
+  };
+
   // Navigation handlers
   const navigateTo = useCallback((route: 'home' | 'login' | 'app') => {
     const paths = { home: '/home', login: '/login', app: '/' };
@@ -254,6 +265,7 @@ const App: React.FC = () => {
               onDelete={deleteList}
               onTogglePin={toggleListPin}
               onCreateNew={handleCreateNewList}
+              onMoveItemToDate={onMoveTask}
               onOpenInModal={(list) => { setEditingList(list); setIsListModalOpen(true); }}
             />
           ) : (
