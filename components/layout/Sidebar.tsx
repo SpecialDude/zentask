@@ -9,9 +9,10 @@ interface SidebarProps {
   setIsDarkMode: (v: boolean) => void;
   isOpen: boolean;
   onClose: () => void;
+  isAdmin?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ viewType, setViewType, isDarkMode, setIsDarkMode, isOpen, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ viewType, setViewType, isDarkMode, setIsDarkMode, isOpen, onClose, isAdmin }) => {
   const NavItem = ({ id, label, icon }: { id: ViewType, label: string, icon: React.ReactNode }) => (
     <button
       onClick={() => { setViewType(id); onClose(); }}
@@ -81,6 +82,39 @@ const Sidebar: React.FC<SidebarProps> = ({ viewType, setViewType, isDarkMode, se
               </svg>}
             />
           </div>
+
+          {/* Integrations */}
+          <div className="pt-4 pb-2">
+            <div className="h-px bg-slate-200 dark:bg-slate-800 mx-4 mb-4"></div>
+            <NavItem
+              id="INTEGRATIONS"
+              label="Integrations"
+              icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+              </svg>}
+            />
+          </div>
+          
+          {/* Admin Only Section */}
+          {isAdmin && (
+            <div className="pt-4 pb-2 space-y-2">
+              <div className="h-px bg-slate-200 dark:bg-slate-800 mx-4 mb-4"></div>
+              <NavItem
+                id="ADMIN_FEEDBACK"
+                label="Admin Feedback"
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                </svg>}
+              />
+              <NavItem
+                id="ADMIN_ANALYTICS"
+                label="Admin Analytics"
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                </svg>}
+              />
+            </div>
+          )}
         </nav>
 
         <div className="mt-auto pt-6 border-t border-slate-100 dark:border-slate-800 space-y-2">

@@ -9,4 +9,5 @@ export { useViewNavigation } from './useViewNavigation';
 export { useTasks } from './useTasks';
 export { useQuickLists } from './useQuickLists';
 export { useDebounce } from './useDebounce';
+export { useJira } from './useJira';
 

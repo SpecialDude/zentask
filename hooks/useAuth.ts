@@ -18,12 +18,26 @@ export function useAuth() {
     const [userName, setUserName] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
 
+    const [isAdmin, setIsAdmin] = useState(false);
+
     useEffect(() => {
+        const checkAdminStatus = async (userId: string) => {
+            const { data } = await supabase
+                .from('admins')
+                .select('id')
+                .eq('id', userId)
+                .single();
+            setIsAdmin(!!data);
+        };
+
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             if (session?.user?.user_metadata?.display_name) {
                 setUserName(session.user.user_metadata.display_name);
+            }
+            if (session?.user?.id) {
+                checkAdminStatus(session.user.id);
             }
             setIsLoading(false);
         });
@@ -33,6 +47,11 @@ export function useAuth() {
             setSession(session);
             if (session?.user?.user_metadata?.display_name) {
                 setUserName(session.user.user_metadata.display_name);
+            }
+            if (session?.user?.id) {
+                checkAdminStatus(session.user.id);
+            } else {
+                setIsAdmin(false);
             }
         });
 
@@ -53,6 +72,7 @@ export function useAuth() {
         session,
         user,
         userName,
+        isAdmin,
         setUserName,
         isLoading,
         isAuthenticated: !!session,
