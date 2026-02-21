@@ -9,7 +9,7 @@ import { useTheme, useAuth, useViewNavigation, useTasks, useQuickLists } from '.
 import { Sidebar, Header } from './components/layout';
 
 // View components
-import { ListView, KanbanBoard, Dashboard, AdminFeedbackView } from './components/views';
+import { ListView, KanbanBoard, Dashboard, AdminFeedbackView, AdminAnalyticsView } from './components/views';
 
 // Task components
 import { TaskModal, TaskDetailModal, TaskReviewModal, ExtendRecurringModal } from './components/tasks';
@@ -257,6 +257,8 @@ const App: React.FC = () => {
               onCreateNew={handleCreateNewList}
               onOpenInModal={(list) => { setEditingList(list); setIsListModalOpen(true); }}
             />
+          ) : viewType === 'ADMIN_ANALYTICS' ? (
+            <AdminAnalyticsView />
           ) : viewType === 'ADMIN_FEEDBACK' ? (
             <AdminFeedbackView />
           ) : (

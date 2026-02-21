@@ -12,6 +12,8 @@ const VIEW_HASH_MAP: Record<string, ViewType> = {
     'kanban': 'KANBAN',
     'lists': 'LISTS',
     'settings': 'SETTINGS',
+    'admin_feedback': 'ADMIN_FEEDBACK',
+    'admin_analytics': 'ADMIN_ANALYTICS',
     '': 'LIST',
     'list': 'LIST',
     'tasks': 'LIST'
@@ -22,6 +24,8 @@ const HASH_VIEW_MAP: Record<ViewType, string> = {
     'KANBAN': 'kanban',
     'LISTS': 'lists',
     'SETTINGS': 'settings',
+    'ADMIN_FEEDBACK': 'admin_feedback',
+    'ADMIN_ANALYTICS': 'admin_analytics',
     'LIST': 'tasks'
 };
 
