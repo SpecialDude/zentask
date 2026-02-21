@@ -14,12 +14,13 @@ interface ListViewProps {
   onCarryOver: (id: string, newDate: string) => void;
   onExtendSeries: (t: Task) => void;
   onReparent?: (taskId: string, newParentId: string | null) => void;
+  jiraMappings?: Map<string, string>; // taskId → jiraIssueKey
 }
 
 type SortMode = 'SMART' | 'PRIORITY' | 'TIME' | 'STATUS';
 
 const ListView: React.FC<ListViewProps> = ({
-  tasks, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries, onReparent
+  tasks, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries, onReparent, jiraMappings
 }) => {
   const [sortMode, setSortMode] = useState<SortMode>('SMART');
   const [hideCompleted, setHideCompleted] = useState(false);
@@ -272,6 +273,7 @@ const ListView: React.FC<ListViewProps> = ({
             onCarryOver={onCarryOver}
             onExtendSeries={onExtendSeries}
             onReparent={onReparent}
+            jiraIssueKey={jiraMappings?.get(task.id)}
             level={0}
             draggedTaskId={draggedTaskId}
             onDragStart={setDraggedTaskId}

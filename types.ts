@@ -20,7 +20,7 @@ export enum RecurrencePattern {
   WEEKDAYS = 'WEEKDAYS'
 }
 
-export type ViewType = 'LIST' | 'KANBAN' | 'DASHBOARD' | 'SETTINGS' | 'LISTS' | 'ADMIN_FEEDBACK' | 'ADMIN_ANALYTICS';
+export type ViewType = 'LIST' | 'KANBAN' | 'DASHBOARD' | 'SETTINGS' | 'LISTS' | 'ADMIN_FEEDBACK' | 'ADMIN_ANALYTICS' | 'INTEGRATIONS';
 
 export interface AdminAnalyticsData {
   total_users: number;
@@ -29,6 +29,55 @@ export interface AdminAnalyticsData {
   tasks_completion_rate: number;
   total_quick_lists: number;
   total_feedback: number;
+}
+
+// --- Jira Integration Types ---
+
+export interface JiraConnection {
+  id: string;
+  user_id: string;
+  cloud_id: string;
+  site_name: string;
+  atlassian_email: string;
+  token_expires_at: string;
+  created_at: string;
+}
+
+export interface JiraProject {
+  id: string;
+  user_id: string;
+  connection_id: string;
+  project_id: string;
+  project_key: string;
+  project_name: string;
+  last_synced_at: string | null;
+  created_at: string;
+}
+
+export interface JiraIssue {
+  id: string;
+  key: string;
+  summary: string;
+  description?: string;
+  status: string;
+  statusCategory: string;
+  priority?: string;
+  parentId?: string;
+  parentKey?: string;
+  issueType?: string;
+}
+
+export interface JiraTaskMapping {
+  id: string;
+  user_id: string;
+  task_id: string;
+  jira_project_id: string;
+  jira_issue_id: string;
+  jira_issue_key: string;
+  jira_parent_id: string | null;
+  jira_status: string;
+  last_synced_at: string;
+  created_at: string;
 }
 
 export interface Task {

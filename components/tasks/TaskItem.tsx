@@ -15,6 +15,7 @@ interface TaskItemProps {
   onCarryOver: (id: string, newDate: string, reason?: string) => void;
   onExtendSeries: (t: Task) => void;
   onReparent?: (taskId: string, newParentId: string | null) => void;
+  jiraIssueKey?: string | null;
   level: number;
   // Drag state passed from ListView
   draggedTaskId?: string | null;
@@ -23,7 +24,7 @@ interface TaskItemProps {
 }
 
 const TaskItem: React.FC<TaskItemProps> = ({
-  task, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries, onReparent, level,
+  task, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries, onReparent, jiraIssueKey, level,
   draggedTaskId, onDragStart, onDragEnd
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -188,6 +189,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
                 {task.title}
               </h3>
               <div className="flex items-center flex-wrap gap-1 md:space-x-2 text-[10px] md:text-xs font-medium text-slate-500">
+                {jiraIssueKey && (
+                  <span className="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-semibold gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" /></svg>
+                    {jiraIssueKey}
+                  </span>
+                )}
                 {task.carriedOverTo && (
                   <span className="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded italic font-normal">
                     to {task.carriedOverTo}

@@ -14,6 +14,7 @@ const VIEW_HASH_MAP: Record<string, ViewType> = {
     'settings': 'SETTINGS',
     'admin_feedback': 'ADMIN_FEEDBACK',
     'admin_analytics': 'ADMIN_ANALYTICS',
+    'integrations': 'INTEGRATIONS',
     '': 'LIST',
     'list': 'LIST',
     'tasks': 'LIST'
@@ -26,6 +27,7 @@ const HASH_VIEW_MAP: Record<ViewType, string> = {
     'SETTINGS': 'settings',
     'ADMIN_FEEDBACK': 'admin_feedback',
     'ADMIN_ANALYTICS': 'admin_analytics',
+    'INTEGRATIONS': 'integrations',
     'LIST': 'tasks'
 };
 

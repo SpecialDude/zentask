@@ -20,25 +20,28 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
     const [tasks, setTasks] = useState<Task[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
+    // Fetch tasks
+    const refetchTasks = useCallback(async () => {
+        if (!userId) return;
+        setIsLoading(true);
+        const { data, error } = await taskService.fetchTasks(userId);
+        if (error) {
+            console.error('Error fetching tasks:', error);
+            showToast('Failed to load tasks', 'error');
+        } else if (data) {
+            setTasks(data);
+        }
+        setIsLoading(false);
+    }, [userId, showToast]);
+
     // Fetch tasks on mount/user change
     useEffect(() => {
         if (userId) {
-            const fetchTasksData = async () => {
-                setIsLoading(true);
-                const { data, error } = await taskService.fetchTasks(userId);
-                if (error) {
-                    console.error('Error fetching tasks:', error);
-                    showToast('Failed to load tasks', 'error');
-                } else if (data) {
-                    setTasks(data);
-                }
-                setIsLoading(false);
-            };
-            fetchTasksData();
+            refetchTasks();
         } else {
             setTasks([]);
         }
-    }, [userId]);
+    }, [userId, refetchTasks]);
 
     // Sync parent task completion based on children
     const syncParents = useCallback((taskId: string, currentTasks: Task[]): Task[] => {
@@ -552,6 +555,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
         endRecurringSeries,
         handleAIPlanGenerated,
         syncParents,
-        reparentTask
+        reparentTask,
+        refetchTasks
     };
 }

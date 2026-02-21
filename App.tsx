@@ -1,15 +1,15 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Task, TaskStatus, QuickList } from './types';
 import { getTodayStr } from './utils';
 
 // Custom hooks
-import { useTheme, useAuth, useViewNavigation, useTasks, useQuickLists } from './hooks';
+import { useTheme, useAuth, useViewNavigation, useTasks, useQuickLists, useJira } from './hooks';
 
 // Layout components
 import { Sidebar, Header } from './components/layout';
 
 // View components
-import { ListView, KanbanBoard, Dashboard, AdminFeedbackView, AdminAnalyticsView } from './components/views';
+import { ListView, KanbanBoard, Dashboard, AdminFeedbackView, AdminAnalyticsView, IntegrationsView } from './components/views';
 
 // Task components
 import { TaskModal, TaskDetailModal, TaskReviewModal, ExtendRecurringModal } from './components/tasks';
@@ -74,7 +74,8 @@ const App: React.FC = () => {
     extendRecurringSeries,
     endRecurringSeries,
     handleAIPlanGenerated,
-    reparentTask
+    reparentTask,
+    refetchTasks
   } = useTasks({
     userId: session?.user?.id,
     showToast,
@@ -86,6 +87,19 @@ const App: React.FC = () => {
     userId: session?.user?.id,
     showToast
   });
+
+  // Jira integration
+  const jira = useJira({
+    userId: session?.user?.id,
+    onTaskUpdate: updateTask,
+    showToast
+  });
+
+  const jiraMappings = useMemo(() => {
+    const map = new Map<string, string>();
+    jira.mappings.forEach(m => map.set(m.task_id, m.jira_issue_key));
+    return map;
+  }, [jira.mappings]);
 
   // Computed values
   const filteredTasks = useMemo(() => tasks.filter(t => t.date === selectedDate), [tasks, selectedDate]);
@@ -240,6 +254,7 @@ const App: React.FC = () => {
               onCarryOver={carryOverTask}
               onExtendSeries={(t) => setExtendingTask(t)}
               onReparent={reparentTask}
+              jiraMappings={jiraMappings}
             />
           ) : viewType === 'SETTINGS' ? (
             <Settings
@@ -261,6 +276,8 @@ const App: React.FC = () => {
             <AdminAnalyticsView />
           ) : viewType === 'ADMIN_FEEDBACK' ? (
             <AdminFeedbackView />
+          ) : viewType === 'INTEGRATIONS' ? (
+            <IntegrationsView showToast={showToast} updateTask={updateTask} refetchTasks={refetchTasks} />
           ) : (
             <KanbanBoard
               tasks={filteredTasks}
