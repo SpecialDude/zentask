@@ -9,7 +9,7 @@ import { useTheme, useAuth, useViewNavigation, useTasks, useQuickLists } from '.
 import { Sidebar, Header } from './components/layout';
 
 // View components
-import { ListView, KanbanBoard, Dashboard } from './components/views';
+import { ListView, KanbanBoard, Dashboard, AdminFeedbackView } from './components/views';
 
 // Task components
 import { TaskModal, TaskDetailModal, TaskReviewModal, ExtendRecurringModal } from './components/tasks';
@@ -31,7 +31,7 @@ const App: React.FC = () => {
   const { showToast } = useToast();
 
   // Core hooks
-  const { session, userName, setUserName, isLoading } = useAuth();
+  const { session, userName, setUserName, isLoading, isAdmin } = useAuth();
   const { isDarkMode, setIsDarkMode } = useTheme();
   const { viewType, setViewType } = useViewNavigation();
 
@@ -205,6 +205,7 @@ const App: React.FC = () => {
         setIsDarkMode={setIsDarkMode}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        isAdmin={isAdmin}
       />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
@@ -256,6 +257,8 @@ const App: React.FC = () => {
               onCreateNew={handleCreateNewList}
               onOpenInModal={(list) => { setEditingList(list); setIsListModalOpen(true); }}
             />
+          ) : viewType === 'ADMIN_FEEDBACK' ? (
+            <AdminFeedbackView />
           ) : (
             <KanbanBoard
               tasks={filteredTasks}

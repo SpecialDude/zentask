@@ -20,7 +20,7 @@ export enum RecurrencePattern {
   WEEKDAYS = 'WEEKDAYS'
 }
 
-export type ViewType = 'LIST' | 'KANBAN' | 'DASHBOARD' | 'SETTINGS' | 'LISTS';
+export type ViewType = 'LIST' | 'KANBAN' | 'DASHBOARD' | 'SETTINGS' | 'LISTS' | 'ADMIN_FEEDBACK';
 
 export interface Task {
   id: string;
