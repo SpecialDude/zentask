@@ -85,7 +85,7 @@ const Sidebar: React.FC<SidebarProps> = ({ viewType, setViewType, isDarkMode, se
           
           {/* Admin Only Section */}
           {isAdmin && (
-            <div className="pt-4 pb-2">
+            <div className="pt-4 pb-2 space-y-2">
               <div className="h-px bg-slate-200 dark:bg-slate-800 mx-4 mb-4"></div>
               <NavItem
                 id="ADMIN_FEEDBACK"

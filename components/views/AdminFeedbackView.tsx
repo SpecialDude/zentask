@@ -1,13 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FeedbackCategory, Feedback } from '../../types';
 import { getFeedback } from '../../services/feedbackService';
 import { useAuth } from '../../hooks';
+import { AccessDenied } from '../admin';
 import LoadingSpinner from '../LoadingSpinner';
+
+const ITEMS_PER_PAGE = 10;
+
+const CATEGORY_STYLES: Record<string, string> = {
+    bug: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800',
+    feature: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
+    question: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+    general: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+};
 
 const AdminFeedbackView: React.FC = () => {
     const { isAdmin } = useAuth();
-    
-    // State
+
     const [feedback, setFeedback] = useState<Feedback[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [page, setPage] = useState(1);
@@ -16,18 +25,15 @@ const AdminFeedbackView: React.FC = () => {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [error, setError] = useState<string | null>(null);
 
-    const limit = 10;
-
-    // Fetch Data
-    const fetchFeedback = async () => {
+    const fetchFeedback = useCallback(async () => {
         setIsLoading(true);
         setError(null);
-        
+
         const filter = categoryFilter === 'all' ? undefined : categoryFilter;
-        
+
         try {
-            const { data, count, error: fetchError } = await getFeedback(page, limit, filter, sortOrder);
-            
+            const { data, count, error: fetchError } = await getFeedback(page, ITEMS_PER_PAGE, filter, sortOrder);
+
             if (fetchError) {
                 console.error("Error fetching feedback:", fetchError);
                 setError(fetchError.message || "Failed to load feedback. Ensure you are an admin.");
@@ -42,55 +48,29 @@ const AdminFeedbackView: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [page, categoryFilter, sortOrder]);
 
-    // Re-fetch when dependencies change
     useEffect(() => {
         if (isAdmin) {
             fetchFeedback();
         } else {
             setIsLoading(false);
-            setError("You do not have permission to view this page.");
         }
-    }, [page, categoryFilter, sortOrder, isAdmin]);
+    }, [isAdmin, fetchFeedback]);
 
-    // Derived states
-    const totalPages = Math.ceil(totalCount / limit) || 1;
+    const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE) || 1;
 
-    // Handlers
     const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setCategoryFilter(e.target.value as FeedbackCategory | 'all');
-        setPage(1); // Reset to first page on filter change
+        setPage(1);
     };
 
     const handleSortToggle = () => {
         setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
-        setPage(1); // Reset to first page
+        setPage(1);
     };
 
-    // Helpers
-    const getCategoryStyles = (cat: string) => {
-        switch (cat) {
-            case 'bug': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800';
-            case 'feature': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800';
-            case 'question': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800';
-            default: return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700';
-        }
-    };
-
-    if (!isAdmin) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Access Denied</h2>
-                <p className="text-slate-500 dark:text-slate-400">You must be an administrator to view this page.</p>
-            </div>
-        );
-    }
+    if (!isAdmin) return <AccessDenied />;
 
     return (
         <div className="max-w-6xl mx-auto h-full flex flex-col">
@@ -137,7 +117,7 @@ const AdminFeedbackView: React.FC = () => {
                             {sortOrder === 'desc' ? 'Newest' : 'Oldest'}
                         </div>
                     </button>
-                    
+
                     {/* Refresh */}
                     <button
                         onClick={fetchFeedback}
@@ -151,17 +131,24 @@ const AdminFeedbackView: React.FC = () => {
                 </div>
             </div>
 
-            {/* Error State */}
+            {/* Dismissable Error State */}
             {error && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400">
-                    <p className="font-medium">Error loading feedback</p>
-                    <p className="text-sm mt-1">{error}</p>
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 flex items-start justify-between gap-3">
+                    <div>
+                        <p className="font-medium">Error loading feedback</p>
+                        <p className="text-sm mt-1">{error}</p>
+                    </div>
+                    <button onClick={() => setError(null)} className="shrink-0 p-1 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                    </button>
                 </div>
             )}
 
             {/* Content Area */}
             <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col shadow-sm">
-                
+
                 {isLoading ? (
                     <div className="flex-1 flex justify-center items-center">
                         <LoadingSpinner size="lg" message="Loading feedback..." />
@@ -175,8 +162,8 @@ const AdminFeedbackView: React.FC = () => {
                         </div>
                         <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-1">No Feedback Found</h3>
                         <p className="max-w-md mx-auto">
-                            {categoryFilter === 'all' 
-                                ? "There is no user feedback recorded yet." 
+                            {categoryFilter === 'all'
+                                ? "There is no user feedback recorded yet."
                                 : `No feedback found for the '${categoryFilter}' category.`}
                         </p>
                     </div>
@@ -187,7 +174,7 @@ const AdminFeedbackView: React.FC = () => {
                                 <div key={item.id} className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 hover:shadow-md transition-shadow group">
                                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-3">
                                         <div className="flex items-center gap-3">
-                                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-md border capitalize ${getCategoryStyles(item.category)}`}>
+                                            <span className={`px-2.5 py-1 text-xs font-semibold rounded-md border capitalize ${CATEGORY_STYLES[item.category] || CATEGORY_STYLES.general}`}>
                                                 {item.category}
                                             </span>
                                             {item.email && (
@@ -236,7 +223,7 @@ const AdminFeedbackView: React.FC = () => {
                         <div className="text-sm text-slate-500">
                             Showing <span className="font-medium text-slate-900 dark:text-white">{feedback.length}</span> of <span className="font-medium text-slate-900 dark:text-white">{totalCount}</span> items
                         </div>
-                        
+
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -245,13 +232,13 @@ const AdminFeedbackView: React.FC = () => {
                             >
                                 Previous
                             </button>
-                            
+
                             <div className="flex items-center px-2">
                                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                     Page {page} of {totalPages}
                                 </span>
                             </div>
-                            
+
                             <button
                                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                                 disabled={page === totalPages}
