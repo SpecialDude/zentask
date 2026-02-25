@@ -2,17 +2,24 @@
  * DeleteConfirmationModals - Delete confirmation dialogs for tasks
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface DeleteConfirmationModalsProps {
     deleteConfig: { id: string; title: string } | null;
     pendingDelete: { id: string; title: string; deleteAll: boolean } | null;
-    onDeleteInstance: (id: string) => void;
-    onDeleteAll: (id: string) => void;
-    onConfirmPending: () => void;
+    onDeleteInstance: (id: string) => Promise<void> | void;
+    onDeleteAll: (id: string) => Promise<void> | void;
+    onConfirmPending: () => Promise<void> | void;
     onCancelDelete: () => void;
     onCancelPending: () => void;
 }
+
+const Spinner = () => (
+    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+);
 
 const DeleteConfirmationModals: React.FC<DeleteConfirmationModalsProps> = ({
     deleteConfig,
@@ -23,6 +30,37 @@ const DeleteConfirmationModals: React.FC<DeleteConfirmationModalsProps> = ({
     onCancelDelete,
     onCancelPending
 }) => {
+    const [isDeleting, setIsDeleting] = useState<'instance' | 'all' | 'confirm' | null>(null);
+
+    const handleDeleteInstance = async (id: string) => {
+        setIsDeleting('instance');
+        try {
+            await onDeleteInstance(id);
+        } finally {
+            setIsDeleting(null);
+        }
+    };
+
+    const handleDeleteAll = async (id: string) => {
+        setIsDeleting('all');
+        try {
+            await onDeleteAll(id);
+        } finally {
+            setIsDeleting(null);
+        }
+    };
+
+    const handleConfirmPending = async () => {
+        setIsDeleting('confirm');
+        try {
+            await onConfirmPending();
+        } finally {
+            setIsDeleting(null);
+        }
+    };
+
+    const busy = isDeleting !== null;
+
     return (
         <>
             {/* Recurring Task Delete Choice Modal */}
@@ -42,26 +80,39 @@ const DeleteConfirmationModals: React.FC<DeleteConfirmationModalsProps> = ({
 
                         <div className="space-y-3">
                             <button
-                                onClick={() => onDeleteInstance(deleteConfig.id)}
-                                className="w-full py-4 px-6 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold rounded-2xl transition-all flex items-center justify-between group"
+                                disabled={busy}
+                                onClick={() => handleDeleteInstance(deleteConfig.id)}
+                                className="w-full py-4 px-6 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold rounded-2xl transition-all flex items-center justify-between group disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                                <span>Delete only this instance</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                </svg>
+                                <span className="flex items-center gap-2">
+                                    {isDeleting === 'instance' && <Spinner />}
+                                    {isDeleting === 'instance' ? 'Deleting…' : 'Delete only this instance'}
+                                </span>
+                                {isDeleting !== 'instance' && (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                )}
                             </button>
                             <button
-                                onClick={() => onDeleteAll(deleteConfig.id)}
-                                className="w-full py-4 px-6 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-red-200 dark:shadow-none flex items-center justify-between group"
+                                disabled={busy}
+                                onClick={() => handleDeleteAll(deleteConfig.id)}
+                                className="w-full py-4 px-6 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-red-200 dark:shadow-none flex items-center justify-between group disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                                <span>Delete all instances</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                </svg>
+                                <span className="flex items-center gap-2">
+                                    {isDeleting === 'all' && <Spinner />}
+                                    {isDeleting === 'all' ? 'Deleting all…' : 'Delete all instances'}
+                                </span>
+                                {isDeleting !== 'all' && (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                )}
                             </button>
                             <button
+                                disabled={busy}
                                 onClick={onCancelDelete}
-                                className="w-full py-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold transition-colors"
+                                className="w-full py-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold transition-colors disabled:opacity-40"
                             >
                                 Cancel
                             </button>
@@ -92,16 +143,19 @@ const DeleteConfirmationModals: React.FC<DeleteConfirmationModalsProps> = ({
 
                         <div className="flex gap-3 pt-6">
                             <button
+                                disabled={busy}
                                 onClick={onCancelPending}
-                                className="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                                className="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all disabled:opacity-40"
                             >
                                 Cancel
                             </button>
                             <button
-                                onClick={onConfirmPending}
-                                className="flex-1 py-3 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-500/20 hover:scale-105 active:scale-95 transition-all"
+                                disabled={busy}
+                                onClick={handleConfirmPending}
+                                className="flex-1 py-3 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             >
-                                Delete
+                                {isDeleting === 'confirm' && <Spinner />}
+                                {isDeleting === 'confirm' ? 'Deleting…' : 'Delete'}
                             </button>
                         </div>
                     </div>

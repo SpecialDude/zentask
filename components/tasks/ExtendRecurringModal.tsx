@@ -3,9 +3,16 @@ import React, { useState } from 'react';
 interface ExtendRecurringModalProps {
     taskTitle: string;
     onClose: () => void;
-    onExtend: (occurrences: number) => void;
-    onEnd: () => void;
+    onExtend: (occurrences: number) => Promise<void> | void;
+    onEnd: () => Promise<void> | void;
 }
+
+const Spinner = () => (
+    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+);
 
 const ExtendRecurringModal: React.FC<ExtendRecurringModalProps> = ({
     taskTitle,
@@ -15,12 +22,33 @@ const ExtendRecurringModal: React.FC<ExtendRecurringModalProps> = ({
 }) => {
     const [customCount, setCustomCount] = useState(7);
     const [showEndConfirm, setShowEndConfirm] = useState(false);
+    const [isBusy, setIsBusy] = useState(false);
 
     const quickOptions = [
         { label: '+7 days', value: 7 },
         { label: '+14 days', value: 14 },
         { label: '+30 days', value: 30 },
     ];
+
+    const handleExtend = async (count: number) => {
+        setIsBusy(true);
+        try {
+            await onExtend(count);
+            onClose();
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handleEnd = async () => {
+        setIsBusy(true);
+        try {
+            await onEnd();
+            onClose();
+        } finally {
+            setIsBusy(false);
+        }
+    };
 
     if (showEndConfirm) {
         return (
@@ -42,16 +70,19 @@ const ExtendRecurringModal: React.FC<ExtendRecurringModalProps> = ({
 
                     <div className="flex gap-3 pt-6">
                         <button
+                            disabled={isBusy}
                             onClick={() => setShowEndConfirm(false)}
-                            className="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                            className="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all disabled:opacity-40"
                         >
                             Cancel
                         </button>
                         <button
-                            onClick={() => { onEnd(); onClose(); }}
-                            className="flex-1 py-3 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-lg shadow-amber-500/20 transition-all"
+                            disabled={isBusy}
+                            onClick={handleEnd}
+                            className="flex-1 py-3 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-lg shadow-amber-500/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                            End Series
+                            {isBusy && <Spinner />}
+                            {isBusy ? 'Ending…' : 'End Series'}
                         </button>
                     </div>
                 </div>
@@ -83,8 +114,9 @@ const ExtendRecurringModal: React.FC<ExtendRecurringModalProps> = ({
                         {quickOptions.map(opt => (
                             <button
                                 key={opt.value}
-                                onClick={() => { onExtend(opt.value); onClose(); }}
-                                className="py-3 text-sm font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white rounded-xl transition-all"
+                                disabled={isBusy}
+                                onClick={() => handleExtend(opt.value)}
+                                className="py-3 text-sm font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
                             >
                                 {opt.label}
                             </button>
@@ -105,10 +137,12 @@ const ExtendRecurringModal: React.FC<ExtendRecurringModalProps> = ({
                             className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                         />
                         <button
-                            onClick={() => { onExtend(customCount); onClose(); }}
-                            className="px-6 py-3 text-sm font-bold bg-primary text-white rounded-xl hover:bg-indigo-700 transition-all"
+                            disabled={isBusy}
+                            onClick={() => handleExtend(customCount)}
+                            className="px-6 py-3 text-sm font-bold bg-primary text-white rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                         >
-                            Extend
+                            {isBusy && <Spinner />}
+                            {isBusy ? 'Extending…' : 'Extend'}
                         </button>
                     </div>
                 </div>
@@ -116,14 +150,16 @@ const ExtendRecurringModal: React.FC<ExtendRecurringModalProps> = ({
                 <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
                     <div className="flex gap-3">
                         <button
+                            disabled={isBusy}
                             onClick={onClose}
-                            className="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                            className="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all disabled:opacity-40"
                         >
                             Cancel
                         </button>
                         <button
+                            disabled={isBusy}
                             onClick={() => setShowEndConfirm(true)}
-                            className="flex-1 py-3 text-sm font-bold text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl transition-all border border-amber-200 dark:border-amber-800"
+                            className="flex-1 py-3 text-sm font-bold text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl transition-all border border-amber-200 dark:border-amber-800 disabled:opacity-50"
                         >
                             End Series
                         </button>

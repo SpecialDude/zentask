@@ -7,21 +7,24 @@ interface TaskModalProps {
   onClose: () => void;
   onSave: (data: Partial<Task>) => void;
   initialData?: Task;
+  prefilledData?: Partial<Task>;
   isSubtask?: boolean;
 }
 
-const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isSubtask }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, prefilledData, isSubtask }) => {
+  const source = initialData || prefilledData;
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
-    title: initialData?.title || '',
-    description: initialData?.description || '',
-    duration: initialData?.duration || 0,
-    startTime: initialData?.startTime || '',
-    priority: initialData?.priority || undefined as TaskPriority | undefined,
+    title: source?.title || '',
+    description: source?.description || '',
+    duration: source?.duration || 0,
+    startTime: source?.startTime || '',
+    priority: source?.priority || undefined as TaskPriority | undefined,
     completion: initialData?.completion || 0,
     status: initialData?.status || TaskStatus.TODO,
-    isRecurring: initialData?.isRecurring || false,
-    recurrencePattern: initialData?.recurrencePattern || undefined as RecurrencePattern | undefined,
-    recurrenceEndDate: initialData?.recurrenceEndDate || '',
+    isRecurring: source?.isRecurring || false,
+    recurrencePattern: source?.recurrencePattern || undefined as RecurrencePattern | undefined,
+    recurrenceEndDate: source?.recurrenceEndDate || '',
     review: initialData?.review || ''
   });
 
@@ -39,10 +42,15 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
     { value: RecurrencePattern.MONTHLY, label: 'Monthly', icon: '🗓️' },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim()) return;
-    onSave(formData);
+    if (!formData.title.trim() || isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSave(formData);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -221,9 +229,16 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, isS
           <div className="pt-4 pb-4 sm:pb-0">
             <button
               type="submit"
-              className="w-full bg-primary hover:bg-indigo-700 text-white font-bold py-3 md:py-4 rounded-2xl shadow-xl shadow-primary/30 transition-all active:scale-95"
+              disabled={isSaving}
+              className="w-full bg-primary hover:bg-indigo-700 text-white font-bold py-3 md:py-4 rounded-2xl shadow-xl shadow-primary/30 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {initialData ? 'Save Changes' : 'Create Task'}
+              {isSaving && (
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+              {isSaving ? (initialData ? 'Saving…' : 'Creating…') : (initialData ? 'Save Changes' : 'Create Task')}
             </button>
           </div>
         </form>

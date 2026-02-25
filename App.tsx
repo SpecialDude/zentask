@@ -3,7 +3,7 @@ import { Task, TaskStatus, QuickList } from './types';
 import { getTodayStr } from './utils';
 
 // Custom hooks
-import { useTheme, useAuth, useViewNavigation, useTasks, useQuickLists, useJira } from './hooks';
+import { useTheme, useAuth, useViewNavigation, useTasks, useQuickLists, useJira, useTaskSuggestions } from './hooks';
 
 // Layout components
 import { Sidebar, Header } from './components/layout';
@@ -16,6 +16,7 @@ import { TaskModal, TaskDetailModal, TaskReviewModal, ExtendRecurringModal } fro
 
 // Other components
 import AIModal from './components/AIModal';
+import TaskSuggestionsWidget from './components/TaskSuggestionsWidget';
 import Settings from './components/Settings';
 import { QuickListsPage, QuickListEditorModal, QuickListDocumentEditor } from './components/quickLists';
 import { LandingPage } from './components/landing';
@@ -50,6 +51,7 @@ const App: React.FC = () => {
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [parentForSubtask, setParentForSubtask] = useState<string | null>(null);
+  const [prefilledData, setPrefilledData] = useState<Partial<Task> | undefined>(undefined);
   const [deleteConfig, setDeleteConfig] = useState<{ id: string; title: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; deleteAll: boolean } | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
@@ -95,6 +97,12 @@ const App: React.FC = () => {
     showToast
   });
 
+  // Task suggestions
+  const { availableSuggestions, buildTaskFromSuggestion, dismissSuggestion } = useTaskSuggestions({
+    tasks,
+    selectedDate,
+  });
+
   const jiraMappings = useMemo(() => {
     const map = new Map<string, string>();
     jira.mappings.forEach(m => map.set(m.task_id, m.jira_issue_key));
@@ -118,6 +126,7 @@ const App: React.FC = () => {
   const handleOpenModal = (task?: Task, parentId: string | null = null) => {
     setEditingTask(task);
     setParentForSubtask(parentId);
+    setPrefilledData(undefined);
     setIsModalOpen(true);
   };
 
@@ -128,6 +137,7 @@ const App: React.FC = () => {
       await addTask({ ...data, parentId: parentForSubtask, date: selectedDate, status: TaskStatus.TODO, completion: 0 } as any, () => { });
     }
     setIsModalOpen(false);
+    setPrefilledData(undefined);
   };
 
   const handleDeleteTask = async (id: string, deleteAll = false, confirmed = false) => {
@@ -243,19 +253,34 @@ const App: React.FC = () => {
               onExtendSeries={(t) => setExtendingTask(t)}
             />
           ) : viewType === 'LIST' ? (
-            <ListView
-              tasks={filteredTasks}
-              allTasks={tasks}
-              onUpdateTask={updateTask}
-              onDeleteTask={handleDeleteTask}
-              onEditTask={(t) => handleOpenModal(t)}
-              onViewTask={(t) => setViewingTask(t)}
-              onAddSubtask={(parentId) => handleOpenModal(undefined, parentId)}
-              onCarryOver={carryOverTask}
-              onExtendSeries={(t) => setExtendingTask(t)}
-              onReparent={reparentTask}
-              jiraMappings={jiraMappings}
-            />
+            <>
+              <ListView
+                tasks={filteredTasks}
+                allTasks={tasks}
+                onUpdateTask={updateTask}
+                onDeleteTask={handleDeleteTask}
+                onEditTask={(t) => handleOpenModal(t)}
+                onViewTask={(t) => setViewingTask(t)}
+                onAddSubtask={(parentId) => handleOpenModal(undefined, parentId)}
+                onCarryOver={carryOverTask}
+                onExtendSeries={(t) => setExtendingTask(t)}
+                onReparent={reparentTask}
+                jiraMappings={jiraMappings}
+              />
+              <TaskSuggestionsWidget
+                suggestions={availableSuggestions}
+                isToday={selectedDate === getTodayStr()}
+                onApply={(suggestion) => {
+                  const prefilled = buildTaskFromSuggestion(suggestion);
+                  setEditingTask(undefined);
+                  setParentForSubtask(null);
+                  setPrefilledData(prefilled);
+                  setIsModalOpen(true);
+                  dismissSuggestion(suggestion.id);
+                }}
+                onDismiss={dismissSuggestion}
+              />
+            </>
           ) : viewType === 'SETTINGS' ? (
             <Settings
               tasks={tasks}
@@ -299,12 +324,15 @@ const App: React.FC = () => {
           onOpenAI={() => { setIsFabOpen(false); setIsAIModalOpen(true); }}
         />
 
+
+
         {/* Modals */}
         {isModalOpen && (
           <TaskModal
-            onClose={() => setIsModalOpen(false)}
+            onClose={() => { setIsModalOpen(false); setPrefilledData(undefined); }}
             onSave={handleSaveTask}
             initialData={editingTask}
+            prefilledData={prefilledData}
             isSubtask={!!parentForSubtask}
           />
         )}

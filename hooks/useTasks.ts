@@ -261,8 +261,14 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
 
         if (deleteAll && task.isRecurring) {
             const parentId = task.recurringParentId || task.id;
-            const allInSeries = tasks.filter(t => t.id === parentId || t.recurringParentId === parentId);
-            for (const t of allInSeries) await deleteRecursiveDB(t);
+
+            // Bulk delete: first all instances (children of the parent), then the parent itself
+            const { error: instErr } = await supabase.from('tasks').delete().eq('recurringParentId', parentId);
+            if (instErr) console.error('Error deleting recurring instances:', instErr);
+
+            const { error: parentErr } = await supabase.from('tasks').delete().eq('id', parentId);
+            if (parentErr) console.error('Error deleting recurring parent:', parentErr);
+
             setTasks(prev => prev.filter(t => t.id !== parentId && t.recurringParentId !== parentId));
             showToast('Recurring series deleted', 'success');
         } else {
