@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Block, BlockType } from '../../../types';
 import BlockTypeMenu from './BlockTypeMenu';
+import DatePicker from '../../DatePicker';
 
 interface BlockRowProps {
     block: Block;
@@ -13,6 +14,7 @@ interface BlockRowProps {
     onOutdent: (id: string) => void;
     onToggleCheck: (id: string) => void;
     autoFocus?: boolean;
+    onMoveToDate?: (id: string, date: string) => void;
 }
 
 const BlockRow: React.FC<BlockRowProps> = ({
@@ -25,11 +27,14 @@ const BlockRow: React.FC<BlockRowProps> = ({
     onIndent,
     onOutdent,
     onToggleCheck,
-    autoFocus
+    autoFocus,
+    onMoveToDate
 }) => {
     const [showMenu, setShowMenu] = useState(false);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const addButtonRef = useRef<HTMLButtonElement>(null);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
 
     useEffect(() => {
         if (autoFocus && inputRef.current) {
@@ -177,6 +182,29 @@ const BlockRow: React.FC<BlockRowProps> = ({
                         />
                     )}
                 </div>
+
+                {/* Move to day button (only for list-like blocks) */}
+                {(block.type === 'checkbox' || block.type === 'bullet' || block.type === 'numbered') && (
+                    <div className="relative">
+                        <button
+                            onClick={() => { setSelectedDate(new Date().toISOString().split('T')[0]); setShowDatePicker(true); }}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-all"
+                            title="Move to day"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M6 2a1 1 0 00-1 1v2H3a1 1 0 000 2h2v8a2 2 0 002 2h6a2 2 0 002-2V7h2a1 1 0 100-2h-2V3a1 1 0 00-1-1H6zM8 7a1 1 0 112 0v1a1 1 0 11-2 0V7zm4 0a1 1 0 112 0v1a1 1 0 11-2 0V7z" />
+                            </svg>
+                        </button>
+                        {showDatePicker && (
+                            <DatePicker
+                                selectedDate={selectedDate}
+                                onDateChange={(date) => { setSelectedDate(date); onMoveToDate?.(block.id, date); setShowDatePicker(false); }}
+                                isOpen={showDatePicker}
+                                onClose={() => setShowDatePicker(false)}
+                            />
+                        )}
+                    </div>
+                )}
 
                 {/* Delete button */}
                 <button
