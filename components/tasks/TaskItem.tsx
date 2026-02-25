@@ -7,12 +7,12 @@ import { getStatusColor, getPriorityConfig } from '../../utils/taskUtils';
 interface TaskItemProps {
   task: Task;
   allTasks: Task[];
-  onUpdateTask: (id: string, updates: Partial<Task>) => void;
+  onUpdateTask: (id: string, updates: Partial<Task>) => Promise<void> | void;
   onDeleteTask: (id: string) => void;
   onEditTask: (t: Task) => void;
   onViewTask: (t: Task) => void;
   onAddSubtask: (parentId: string) => void;
-  onCarryOver: (id: string, newDate: string, reason?: string) => void;
+  onCarryOver: (id: string, newDate: string, reason?: string) => Promise<void> | void;
   onExtendSeries: (t: Task) => void;
   onReparent?: (taskId: string, newParentId: string | null) => void;
   jiraIssueKey?: string | null;
@@ -33,6 +33,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [cancelReason, setCancelReason] = useState('');
   const [carryReason, setCarryReason] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isBusy, setIsBusy] = useState(false);
   const wasDragged = useRef(false);
 
   const tomorrowStr = useMemo(() => {
@@ -64,25 +65,43 @@ const TaskItem: React.FC<TaskItemProps> = ({
     return task.date === lastDate;
   }, [task, allTasks]);
 
-  const handleStatusToggle = () => {
-    if (task.status === TaskStatus.COMPLETED) {
-      onUpdateTask(task.id, { status: TaskStatus.TODO, completion: 0 });
-    } else {
-      onUpdateTask(task.id, { status: TaskStatus.COMPLETED, completion: 100 });
+  const handleStatusToggle = async () => {
+    if (isBusy) return;
+    setIsBusy(true);
+    try {
+      if (task.status === TaskStatus.COMPLETED) {
+        await onUpdateTask(task.id, { status: TaskStatus.TODO, completion: 0 });
+      } else {
+        await onUpdateTask(task.id, { status: TaskStatus.COMPLETED, completion: 100 });
+      }
+    } finally {
+      setIsBusy(false);
     }
   };
 
-  const handleCancelSubmit = () => {
-    onUpdateTask(task.id, {
-      status: TaskStatus.CANCELLED,
-      cancelReason
-    });
-    setShowCancelPrompt(false);
+  const handleCancelSubmit = async () => {
+    if (isBusy) return;
+    setIsBusy(true);
+    try {
+      await onUpdateTask(task.id, {
+        status: TaskStatus.CANCELLED,
+        cancelReason
+      });
+      setShowCancelPrompt(false);
+    } finally {
+      setIsBusy(false);
+    }
   };
 
-  const handleCarryOverSubmit = () => {
-    onCarryOver(task.id, carryDate, carryReason);
-    setShowCarryPrompt(false);
+  const handleCarryOverSubmit = async () => {
+    if (isBusy) return;
+    setIsBusy(true);
+    try {
+      await onCarryOver(task.id, carryDate, carryReason);
+      setShowCarryPrompt(false);
+    } finally {
+      setIsBusy(false);
+    }
   };
 
   const canCarryOver = !task.carriedOverTo && task.completion < 100 && task.status !== TaskStatus.CANCELLED;
@@ -169,12 +188,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
             </svg>
           </div>
           <button
-            disabled={!!task.carriedOverTo}
+            disabled={!!task.carriedOverTo || isBusy}
             onClick={(e) => { e.stopPropagation(); handleStatusToggle(); }}
             className={`mt-1 h-5 w-5 md:h-6 md:w-6 rounded-lg border-2 flex items-center justify-center transition-all ${task.status === TaskStatus.COMPLETED
               ? 'bg-green-500 border-green-500 text-white'
               : 'border-slate-300 dark:border-slate-600'
-              } ${task.carriedOverTo ? 'cursor-not-allowed opacity-50' : ''}`}
+              } ${task.carriedOverTo ? 'cursor-not-allowed opacity-50' : ''} ${isBusy ? 'animate-pulse opacity-60 cursor-wait' : ''}`}
           >
             {task.status === TaskStatus.COMPLETED && (
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 md:h-4 md:w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -302,8 +321,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
                         onFocus={scrollInputIntoView}
                       />
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => setShowCancelPrompt(false)} className="text-[10px] px-2 py-1 text-slate-500">Close</button>
-                        <button onClick={handleCancelSubmit} className="text-[10px] px-2 py-1 bg-red-500 text-white rounded">Confirm</button>
+                        <button onClick={() => setShowCancelPrompt(false)} className="text-[10px] px-2 py-1 text-slate-500" disabled={isBusy}>Close</button>
+                        <button onClick={handleCancelSubmit} disabled={isBusy} className="text-[10px] px-2 py-1 bg-red-500 text-white rounded disabled:opacity-50 flex items-center gap-1">
+                          {isBusy && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                          {isBusy ? 'Cancelling…' : 'Confirm'}
+                        </button>
                       </div>
                     </div>
                   )}
@@ -323,8 +345,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
                         <input type="date" className="w-full text-xs p-2 border rounded bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 outline-none" value={carryDate} onChange={(e) => setCarryDate(e.target.value)} onFocus={scrollInputIntoView} />
                         <textarea className="w-full text-xs p-2 border rounded bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 outline-none resize-none" placeholder="Reason (optional)" rows={2} value={carryReason} onChange={(e) => setCarryReason(e.target.value)} onFocus={scrollInputIntoView} />
                         <div className="flex justify-end gap-2 pt-1">
-                          <button onClick={() => setShowCarryPrompt(false)} className="text-[10px] px-2 py-1.5 text-slate-500">Cancel</button>
-                          <button onClick={handleCarryOverSubmit} className="text-[10px] px-2 py-1.5 bg-primary text-white font-bold rounded-lg">Confirm</button>
+                        <button onClick={() => setShowCarryPrompt(false)} disabled={isBusy} className="text-[10px] px-2 py-1.5 text-slate-500 disabled:opacity-40">Cancel</button>
+                          <button onClick={handleCarryOverSubmit} disabled={isBusy} className="text-[10px] px-2 py-1.5 bg-primary text-white font-bold rounded-lg disabled:opacity-50 flex items-center gap-1">
+                            {isBusy && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                            {isBusy ? 'Moving…' : 'Confirm'}
+                          </button>
                         </div>
                       </div>
                     )}

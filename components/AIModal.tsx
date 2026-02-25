@@ -16,6 +16,7 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
   const [input, setInput] = useState('');
   const [inputMode, setInputMode] = useState<InputMode>('text');
   const [loading, setLoading] = useState(false);
+  const [isAccepting, setIsAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewTasks, setPreviewTasks] = useState<any[] | null>(null);
 
@@ -93,10 +94,15 @@ IMPORTANT: Do NOT include relative date references (like 'tomorrow', 'next week'
     }
   };
 
-  const handleAcceptPlan = () => {
+  const handleAcceptPlan = async () => {
     if (previewTasks) {
-      onPlanGenerated(previewTasks);
-      onClose();
+      setIsAccepting(true);
+      try {
+        await onPlanGenerated(previewTasks);
+        onClose();
+      } finally {
+        setIsAccepting(false);
+      }
     }
   };
 
@@ -171,16 +177,28 @@ IMPORTANT: Do NOT include relative date references (like 'tomorrow', 'next week'
 
           <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex gap-3">
             <button
+              disabled={isAccepting}
               onClick={handleRejectPlan}
-              className="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+              className="flex-1 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all disabled:opacity-40"
             >
               Discard
             </button>
             <button
+              disabled={isAccepting}
               onClick={handleAcceptPlan}
-              className="flex-1 py-3 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl shadow-lg shadow-green-500/20 hover:scale-105 active:scale-95 transition-all"
+              className="flex-1 py-3 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl shadow-lg shadow-green-500/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Accept Plan ✓
+              {isAccepting ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Adding…
+                </>
+              ) : (
+                'Accept Plan ✓'
+              )}
             </button>
           </div>
         </div>
