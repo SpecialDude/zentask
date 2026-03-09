@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
       'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL),
       'process.env.SUPABASE_ANON_KEY': JSON.stringify(env.SUPABASE_ANON_KEY),
       'process.env.ATLASSIAN_CLIENT_ID': JSON.stringify(env.ATLASSIAN_CLIENT_ID),
+      'process.env.APP_URL': JSON.stringify(env.APP_URL),
     },
     resolve: {
       alias: {

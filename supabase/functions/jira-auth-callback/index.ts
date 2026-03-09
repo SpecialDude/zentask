@@ -9,7 +9,7 @@ const ATLASSIAN_CLIENT_ID = Deno.env.get('ATLASSIAN_CLIENT_ID')!;
 const ATLASSIAN_CLIENT_SECRET = Deno.env.get('ATLASSIAN_CLIENT_SECRET')!;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const APP_URL = Deno.env.get('APP_URL') || 'http://localhost:5173';
+const APP_URL = Deno.env.get('APP_URL')!;
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
