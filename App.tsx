@@ -9,7 +9,16 @@ import { useTheme, useAuth, useViewNavigation, useTasks, useQuickLists, useJira,
 import { Sidebar, Header } from './components/layout';
 
 // View components
-import { ListView, KanbanBoard, Dashboard, AdminFeedbackView, AdminAnalyticsView, IntegrationsView } from './components/views';
+import { 
+  ListView, 
+  KanbanBoard, 
+  Dashboard, 
+  AdminFeedbackView, 
+  AdminAnalyticsView, 
+  IntegrationsView,
+  PrivacyPolicyView,
+  TermsOfServiceView
+} from './components/views';
 
 // Task components
 import { TaskModal, TaskDetailModal, TaskReviewModal, ExtendRecurringModal } from './components/tasks';
@@ -39,6 +48,8 @@ const App: React.FC = () => {
   // Routing state based on URL
   const [currentRoute, setCurrentRoute] = useState(() => {
     const path = window.location.pathname;
+    if (path === '/privacy') return 'privacy';
+    if (path === '/terms') return 'terms';
     if (path === '/login') return 'login';
     if (path === '/home') return 'home';
     return 'app'; // Default to app (dashboard)
@@ -167,8 +178,8 @@ const App: React.FC = () => {
   };
 
   // Navigation handlers
-  const navigateTo = useCallback((route: 'home' | 'login' | 'app') => {
-    const paths = { home: '/home', login: '/login', app: '/' };
+  const navigateTo = useCallback((route: 'home' | 'login' | 'app' | 'privacy' | 'terms') => {
+    const paths = { home: '/home', login: '/login', app: '/', privacy: '/privacy', terms: '/terms' };
     window.history.pushState({}, '', paths[route]);
     setCurrentRoute(route);
   }, []);
@@ -177,7 +188,9 @@ const App: React.FC = () => {
   React.useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
-      if (path === '/login') setCurrentRoute('login');
+      if (path === '/privacy') setCurrentRoute('privacy');
+      else if (path === '/terms') setCurrentRoute('terms');
+      else if (path === '/login') setCurrentRoute('login');
       else if (path === '/home') setCurrentRoute('home');
       else setCurrentRoute('app');
     };
@@ -191,6 +204,10 @@ const App: React.FC = () => {
       <LoadingSpinner size="lg" message="Loading..." />
     </div>
   );
+
+  // Route: Static Pages
+  if (currentRoute === 'privacy') return <PrivacyPolicyView />;
+  if (currentRoute === 'terms') return <TermsOfServiceView />;
 
   // Route: Home/Landing page (always accessible)
   if (currentRoute === 'home') {
