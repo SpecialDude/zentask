@@ -64,7 +64,7 @@ const App: React.FC = () => {
   const [parentForSubtask, setParentForSubtask] = useState<string | null>(null);
   const [prefilledData, setPrefilledData] = useState<Partial<Task> | undefined>(undefined);
   const [deleteConfig, setDeleteConfig] = useState<{ id: string; title: string } | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; deleteAll: boolean } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; deleteType: 'one' | 'all' | 'following' } | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [extendingTask, setExtendingTask] = useState<Task | null>(null);
   const [isFabOpen, setIsFabOpen] = useState(false);
@@ -151,7 +151,7 @@ const App: React.FC = () => {
     setPrefilledData(undefined);
   };
 
-  const handleDeleteTask = async (id: string, deleteAll = false, confirmed = false) => {
+  const handleDeleteTask = async (id: string, deleteType: 'one' | 'all' | 'following' = 'one', confirmed = false) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
@@ -160,10 +160,10 @@ const App: React.FC = () => {
       return;
     }
     if (!confirmed) {
-      setPendingDelete({ id, title: task.title, deleteAll });
+      setPendingDelete({ id, title: task.title, deleteType });
       return;
     }
-    await deleteTask(id, deleteAll, true);
+    await deleteTask(id, deleteType, true);
     setDeleteConfig(null);
     setPendingDelete(null);
   };
@@ -422,10 +422,11 @@ const App: React.FC = () => {
         <DeleteConfirmationModals
           deleteConfig={deleteConfig}
           pendingDelete={pendingDelete}
-          onDeleteInstance={(id) => deleteTask(id, false, true).then(() => setDeleteConfig(null))}
-          onDeleteAll={(id) => deleteTask(id, true, true).then(() => setDeleteConfig(null))}
+          onDeleteInstance={(id) => deleteTask(id, 'one', true).then(() => setDeleteConfig(null))}
+          onDeleteAll={(id) => deleteTask(id, 'all', true).then(() => setDeleteConfig(null))}
+          onDeleteFollowing={(id) => deleteTask(id, 'following', true).then(() => setDeleteConfig(null))}
           onConfirmPending={() => {
-            if (pendingDelete) deleteTask(pendingDelete.id, pendingDelete.deleteAll, true).then(() => setPendingDelete(null));
+            if (pendingDelete) deleteTask(pendingDelete.id, pendingDelete.deleteType, true).then(() => setPendingDelete(null));
           }}
           onCancelDelete={() => setDeleteConfig(null)}
           onCancelPending={() => setPendingDelete(null)}

@@ -6,9 +6,10 @@ import React, { useState } from 'react';
 
 interface DeleteConfirmationModalsProps {
     deleteConfig: { id: string; title: string } | null;
-    pendingDelete: { id: string; title: string; deleteAll: boolean } | null;
+    pendingDelete: { id: string; title: string; deleteType: 'one' | 'all' | 'following' } | null;
     onDeleteInstance: (id: string) => Promise<void> | void;
     onDeleteAll: (id: string) => Promise<void> | void;
+    onDeleteFollowing: (id: string) => Promise<void> | void;
     onConfirmPending: () => Promise<void> | void;
     onCancelDelete: () => void;
     onCancelPending: () => void;
@@ -26,11 +27,12 @@ const DeleteConfirmationModals: React.FC<DeleteConfirmationModalsProps> = ({
     pendingDelete,
     onDeleteInstance,
     onDeleteAll,
+    onDeleteFollowing,
     onConfirmPending,
     onCancelDelete,
     onCancelPending
 }) => {
-    const [isDeleting, setIsDeleting] = useState<'instance' | 'all' | 'confirm' | null>(null);
+    const [isDeleting, setIsDeleting] = useState<'instance' | 'all' | 'following' | 'confirm' | null>(null);
 
     const handleDeleteInstance = async (id: string) => {
         setIsDeleting('instance');
@@ -45,6 +47,15 @@ const DeleteConfirmationModals: React.FC<DeleteConfirmationModalsProps> = ({
         setIsDeleting('all');
         try {
             await onDeleteAll(id);
+        } finally {
+            setIsDeleting(null);
+        }
+    };
+
+    const handleDeleteFollowing = async (id: string) => {
+        setIsDeleting('following');
+        try {
+            await onDeleteFollowing(id);
         } finally {
             setIsDeleting(null);
         }
@@ -74,7 +85,7 @@ const DeleteConfirmationModals: React.FC<DeleteConfirmationModalsProps> = ({
                         </div>
 
                         <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Delete Task?</h3>
-                        <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
+                        <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed text-sm md:text-base">
                             "<span className="font-bold text-slate-700 dark:text-slate-200">{deleteConfig.title}</span>" is a recurring task. How would you like to delete it?
                         </p>
 
@@ -82,9 +93,9 @@ const DeleteConfirmationModals: React.FC<DeleteConfirmationModalsProps> = ({
                             <button
                                 disabled={busy}
                                 onClick={() => handleDeleteInstance(deleteConfig.id)}
-                                className="w-full py-4 px-6 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold rounded-2xl transition-all flex items-center justify-between group disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="w-full py-3 md:py-4 px-5 md:px-6 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold rounded-2xl transition-all flex items-center justify-between group disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                                <span className="flex items-center gap-2">
+                                <span className="flex items-center gap-2 text-sm md:text-base">
                                     {isDeleting === 'instance' && <Spinner />}
                                     {isDeleting === 'instance' ? 'Deleting…' : 'Delete only this instance'}
                                 </span>
@@ -96,10 +107,25 @@ const DeleteConfirmationModals: React.FC<DeleteConfirmationModalsProps> = ({
                             </button>
                             <button
                                 disabled={busy}
-                                onClick={() => handleDeleteAll(deleteConfig.id)}
-                                className="w-full py-4 px-6 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-red-200 dark:shadow-none flex items-center justify-between group disabled:opacity-60 disabled:cursor-not-allowed"
+                                onClick={() => handleDeleteFollowing(deleteConfig.id)}
+                                className="w-full py-3 md:py-4 px-5 md:px-6 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-bold rounded-2xl transition-all flex items-center justify-between group disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                                <span className="flex items-center gap-2">
+                                <span className="flex items-center gap-2 text-sm md:text-base">
+                                    {isDeleting === 'following' && <Spinner />}
+                                    {isDeleting === 'following' ? 'Deleting…' : 'Delete this and following'}
+                                </span>
+                                {isDeleting !== 'following' && (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                )}
+                            </button>
+                            <button
+                                disabled={busy}
+                                onClick={() => handleDeleteAll(deleteConfig.id)}
+                                className="w-full py-3 md:py-4 px-5 md:px-6 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-red-200 dark:shadow-none flex items-center justify-between group disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                <span className="flex items-center gap-2 text-sm md:text-base">
                                     {isDeleting === 'all' && <Spinner />}
                                     {isDeleting === 'all' ? 'Deleting all…' : 'Delete all instances'}
                                 </span>
@@ -112,7 +138,7 @@ const DeleteConfirmationModals: React.FC<DeleteConfirmationModalsProps> = ({
                             <button
                                 disabled={busy}
                                 onClick={onCancelDelete}
-                                className="w-full py-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold transition-colors disabled:opacity-40"
+                                className="w-full py-3 md:py-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold transition-colors disabled:opacity-40 text-sm md:text-base"
                             >
                                 Cancel
                             </button>
@@ -135,7 +161,8 @@ const DeleteConfirmationModals: React.FC<DeleteConfirmationModalsProps> = ({
                                 <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Confirm Deletion</h3>
                                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                                     Are you sure you want to delete "<span className="font-semibold text-slate-700 dark:text-slate-200">{pendingDelete.title}</span>"
-                                    {pendingDelete.deleteAll && <span className="text-red-500 font-medium"> and all its recurring instances</span>}?
+                                    {pendingDelete.deleteType === 'all' && <span className="text-red-500 font-medium"> and all its recurring instances</span>}
+                                    {pendingDelete.deleteType === 'following' && <span className="text-red-500 font-medium"> and all following instances</span>}?
                                     This action cannot be undone.
                                 </p>
                             </div>
