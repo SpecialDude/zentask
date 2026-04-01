@@ -12,6 +12,7 @@ interface QuickListDocumentCardProps {
     onDelete: (id: string) => void;
     onTogglePin: (e: React.MouseEvent) => void;
     onOpenInModal: () => void;
+    onMoveBlockToDate?: (listId: string, blockId: string, content: string, date: string) => Promise<boolean>;
 }
 
 const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
@@ -19,7 +20,8 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
     onSave,
     onDelete,
     onTogglePin,
-    onOpenInModal
+    onOpenInModal,
+    onMoveBlockToDate
 }) => {
     const [title, setTitle] = useState(list.title);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -38,6 +40,16 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
         toggleCheck,
         setBlocks
     } = useDocumentEditor({ initialBlocks: list.blocks || [] });
+
+    const handleMoveBlock = async (blockId: string, date: string) => {
+        if (!onMoveBlockToDate) return;
+        const block = blocks.find(b => b.id === blockId);
+        if (!block) return;
+        const success = await onMoveBlockToDate(list.id, blockId, block.content, date);
+        if (success) {
+            deleteBlock(blockId);
+        }
+    };
 
     const cardRef = useRef<HTMLDivElement>(null);
     const isInitialized = useRef(false);
@@ -223,6 +235,7 @@ const QuickListDocumentCard: React.FC<QuickListDocumentCardProps> = ({
                                 onOutdent={outdentBlock}
                                 onToggleCheck={toggleCheck}
                                 autoFocus={block.id === newBlockId}
+                                onMoveToDate={handleMoveBlock}
                             />
                         ))
                     }
