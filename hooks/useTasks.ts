@@ -525,6 +525,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
                 date: t.date || taskDate, startTime: t.startTime || '', duration: t.duration || 0,
                 status: TaskStatus.TODO, completion: 0, priority: t.priority,
                 parentId, createdAt: Date.now(), updatedAt: Date.now(),
+                categoryId: t.categoryId || null,
             } as Task;
 
             let allTasks = [newTask];

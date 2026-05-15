@@ -1,18 +1,19 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Task, TaskStatus } from '../../types';
+import { Task, TaskStatus, TaskCategory } from '../../types';
 import { scrollInputIntoView } from '../../utils';
 
 interface KanbanBoardProps {
   tasks: Task[];
   allTasks: Task[];
+  categories: TaskCategory[];
   onUpdateTask: (id: string, updates: Partial<Task>, moveSubtasks?: boolean) => void;
   onDeleteTask: (id: string) => void;
   onEditTask: (t: Task) => void;
   onCarryOver: (id: string, newDate: string, reason?: string) => void;
 }
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTask, onCarryOver, onDeleteTask }) => {
+const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, allTasks, categories, onUpdateTask, onEditTask, onCarryOver, onDeleteTask }) => {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [dropAction, setDropAction] = useState<{ task: Task, status: string | TaskStatus } | null>(null);
   const [promptData, setPromptData] = useState({ date: '', reason: '' });
@@ -181,8 +182,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
     setDropAction(null);
   };
 
-  const renderTaskCard = (task: Task, isInStatus: boolean, level: number) => (
-    <div
+  const renderTaskCard = (task: Task, isInStatus: boolean, level: number) => {
+    const category = task.categoryId ? categories.find(c => c.id === task.categoryId) : null;
+    return (
+      <div
       key={task.id}
       draggable={isInStatus && !task.carriedOverTo}
       onDragStart={(e) => isInStatus && onDragStart(e, task)}
@@ -191,16 +194,28 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
       onTouchEnd={onTouchEnd}
       onTouchCancel={onTouchCancel}
       style={{ touchAction: isDraggingActive ? 'none' : 'auto' }}
-      className={`relative p-3 rounded-xl shadow-sm border transition-all group select-none ${!isInStatus
+      className={`relative overflow-hidden p-3 rounded-xl shadow-sm border transition-all group select-none ${!isInStatus
         ? 'bg-slate-50/50 dark:bg-slate-900/30 border-dashed border-slate-200 dark:border-slate-800 opacity-60'
         : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:shadow-md cursor-pointer active:scale-95'
         } ${activeTask?.id === task.id ? 'opacity-40 grayscale scale-105' : ''} ${level > 0 ? 'ml-4' : ''} ${touchDragging?.task.id === task.id && isDraggingActive ? 'ring-2 ring-primary opacity-50' : ''}`}
       onClick={() => isInStatus && !isDraggingActive && onEditTask(task)}
     >
+      {isInStatus && category && (
+        <div 
+          className="absolute bottom-0 right-0 px-2.5 py-1 text-[9px] font-bold rounded-tl-xl border-t border-l pointer-events-none"
+          style={{ 
+            backgroundColor: `${category.color}15`, 
+            color: category.color,
+            borderColor: `${category.color}30`
+          }}
+        >
+          {category.name}
+        </div>
+      )}
       {!isInStatus && (
         <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-2 h-px bg-slate-300 dark:bg-slate-700" />
       )}
-      <div className="flex justify-between items-start mb-1 gap-2">
+      <div className="flex justify-between items-start mb-1 gap-2 relative z-10">
         <h4 className={`text-sm font-semibold leading-tight break-words ${task.status === TaskStatus.COMPLETED && isInStatus ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-100'
           } ${!isInStatus ? 'text-[11px] text-slate-500 italic' : ''}`}>
           {task.title}
@@ -209,6 +224,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
           <span className="text-[10px] text-blue-500 font-bold uppercase italic whitespace-nowrap">→ {task.carriedOverTo}</span>
         )}
       </div>
+
 
       {isInStatus && (
         <div className="flex items-center justify-between mt-2">
@@ -224,7 +240,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, onUpdateTask, onEditTa
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   const renderTaskTree = (node: any, level: number) => (
     <div key={node.task.id} className="space-y-2">

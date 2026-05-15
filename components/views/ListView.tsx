@@ -1,11 +1,12 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { Task, TaskStatus, TaskPriority } from '../../types';
+import { Task, TaskStatus, TaskPriority, TaskCategory } from '../../types';
 import { TaskItem } from '../tasks';
 
 interface ListViewProps {
   tasks: Task[];
   allTasks: Task[];
+  categories: TaskCategory[];
   onUpdateTask: (id: string, updates: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;
   onEditTask: (t: Task) => void;
@@ -20,10 +21,11 @@ interface ListViewProps {
 type SortMode = 'SMART' | 'PRIORITY' | 'TIME' | 'STATUS';
 
 const ListView: React.FC<ListViewProps> = ({
-  tasks, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries, onReparent, jiraMappings
+  tasks, allTasks, categories, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries, onReparent, jiraMappings
 }) => {
   const [sortMode, setSortMode] = useState<SortMode>('SMART');
   const [hideCompleted, setHideCompleted] = useState(false);
+  const [isGrouped, setIsGrouped] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [isRootDropZoneActive, setIsRootDropZoneActive] = useState(false);
 
@@ -145,6 +147,17 @@ const ListView: React.FC<ListViewProps> = ({
     return rootTasks.sort(sortTasks);
   }, [tasks, allTasks, sortMode, hideCompleted]);
 
+  const groupedTasks = useMemo(() => {
+    if (!isGrouped) return null;
+    const map = new Map<string | null, Task[]>();
+    sortedRootTasks.forEach(task => {
+      const key = task.categoryId || null;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(task);
+    });
+    return map;
+  }, [sortedRootTasks, isGrouped]);
+
   const sortOptions: { value: SortMode; label: string; icon: string }[] = [
     { value: 'SMART', label: 'Smart', icon: '✨' },
     { value: 'PRIORITY', label: 'Priority', icon: '🔥' },
@@ -213,22 +226,37 @@ const ListView: React.FC<ListViewProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={() => setHideCompleted(!hideCompleted)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${hideCompleted
-            ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
-            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            {hideCompleted ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            )}
-          </svg>
-          <span>{hideCompleted ? 'Show Completed' : 'Hide Completed'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsGrouped(!isGrouped)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isGrouped
+              ? 'bg-primary/10 text-primary'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <span>{isGrouped ? 'Grouped by Category' : 'Group by Category'}</span>
+          </button>
+
+          <button
+            onClick={() => setHideCompleted(!hideCompleted)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${hideCompleted
+              ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              {hideCompleted ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              )}
+            </svg>
+            <span className="hidden sm:inline">{hideCompleted ? 'Show Completed' : 'Hide Completed'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Root Drop Zone - visible when dragging a subtask */}
@@ -259,6 +287,51 @@ const ListView: React.FC<ListViewProps> = ({
             Show completed tasks
           </button>
         </div>
+      ) : isGrouped && groupedTasks ? (
+        Array.from(groupedTasks.entries()).map(([catId, groupTasks]) => {
+          const cat = categories.find(c => c.id === catId);
+          return (
+            <div key={catId || 'uncategorized'} className="mb-8">
+              <div className="flex items-center gap-2 mb-3 px-2">
+                {cat ? (
+                  <>
+                    <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: cat.color }}></div>
+                    <h3 className="font-bold text-slate-800 dark:text-slate-100">{cat.name}</h3>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-3.5 h-3.5 rounded-full bg-slate-300 dark:bg-slate-600"></div>
+                    <h3 className="font-bold text-slate-500">Uncategorized</h3>
+                  </>
+                )}
+                <span className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full">{groupTasks.length}</span>
+              </div>
+              <div className="space-y-4">
+                {groupTasks.map(task => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    allTasks={allTasks}
+                    onUpdateTask={onUpdateTask}
+                    onDeleteTask={onDeleteTask}
+                    onEditTask={onEditTask}
+                    onViewTask={onViewTask}
+                    onAddSubtask={onAddSubtask}
+                    onCarryOver={onCarryOver}
+                    onExtendSeries={onExtendSeries}
+                    onReparent={onReparent}
+                    jiraIssueKey={jiraMappings?.get(task.id)}
+                    level={0}
+                    draggedTaskId={draggedTaskId}
+                    onDragStart={setDraggedTaskId}
+                    onDragEnd={() => setDraggedTaskId(null)}
+                    categories={categories}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })
       ) : (
         sortedRootTasks.map(task => (
           <TaskItem
@@ -278,6 +351,7 @@ const ListView: React.FC<ListViewProps> = ({
             draggedTaskId={draggedTaskId}
             onDragStart={setDraggedTaskId}
             onDragEnd={() => setDraggedTaskId(null)}
+            categories={categories}
           />
         ))
       )}

@@ -3,7 +3,7 @@ import { Task, TaskStatus, QuickList } from './types';
 import { getTodayStr } from './utils';
 
 // Custom hooks
-import { useTheme, useAuth, useViewNavigation, useTasks, useQuickLists, useJira, useTaskSuggestions } from './hooks';
+import { useTheme, useAuth, useViewNavigation, useTasks, useQuickLists, useJira, useTaskSuggestions, useCategories } from './hooks';
 
 // Layout components
 import { Sidebar, Header } from './components/layout';
@@ -112,6 +112,12 @@ const App: React.FC = () => {
   const { availableSuggestions, buildTaskFromSuggestion, dismissSuggestion } = useTaskSuggestions({
     tasks,
     selectedDate,
+  });
+
+  // Categories
+  const { categories, addCategory, updateCategory, removeCategory } = useCategories({
+    userId: session?.user?.id,
+    showToast
   });
 
   const jiraMappings = useMemo(() => {
@@ -265,6 +271,7 @@ const App: React.FC = () => {
             <Dashboard
               tasks={tasks}
               selectedDate={selectedDate}
+              categories={categories}
               onTaskClick={(t) => { setSelectedDate(t.date); setViewType('LIST'); }}
               onGoToDate={(d) => { setSelectedDate(d); setViewType('LIST'); }}
               onExtendSeries={(t) => setExtendingTask(t)}
@@ -274,6 +281,7 @@ const App: React.FC = () => {
               <ListView
                 tasks={filteredTasks}
                 allTasks={tasks}
+                categories={categories}
                 onUpdateTask={updateTask}
                 onDeleteTask={handleDeleteTask}
                 onEditTask={(t) => handleOpenModal(t)}
@@ -303,7 +311,11 @@ const App: React.FC = () => {
               tasks={tasks}
               userEmail={session.user.email || ''}
               userName={userName}
+              categories={categories}
               onNameUpdate={setUserName}
+              onAddCategory={addCategory}
+              onUpdateCategory={updateCategory}
+              onRemoveCategory={removeCategory}
             />
           ) : viewType === 'LISTS' ? (
             <QuickListsPage
@@ -324,6 +336,7 @@ const App: React.FC = () => {
             <KanbanBoard
               tasks={filteredTasks}
               allTasks={tasks}
+              categories={categories}
               onUpdateTask={updateTask}
               onDeleteTask={handleDeleteTask}
               onEditTask={(t) => handleOpenModal(t)}
@@ -351,17 +364,23 @@ const App: React.FC = () => {
             initialData={editingTask}
             prefilledData={prefilledData}
             isSubtask={!!parentForSubtask}
+            categories={categories}
           />
         )}
 
         {isAIModalOpen && (
-          <AIModal onClose={() => setIsAIModalOpen(false)} onPlanGenerated={(tasks) => handleAIPlanGenerated(tasks, selectedDate)} />
+          <AIModal 
+            onClose={() => setIsAIModalOpen(false)} 
+            onPlanGenerated={(tasks) => handleAIPlanGenerated(tasks, selectedDate)} 
+            categories={categories}
+          />
         )}
 
         {viewingTask && (
           <TaskDetailModal
             task={viewingTask}
             allTasks={tasks}
+            categories={categories}
             onClose={() => setViewingTask(null)}
             onEdit={() => { setViewingTask(null); handleOpenModal(viewingTask); }}
           />

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Task, TaskStatus, TaskPriority } from '../../types';
+import { Task, TaskStatus, TaskPriority, TaskCategory } from '../../types';
 import { formatDuration, calculateAggregateProgress, scrollInputIntoView } from '../../utils';
 import { getStatusColor, getPriorityConfig } from '../../utils/taskUtils';
 
@@ -21,11 +21,12 @@ interface TaskItemProps {
   draggedTaskId?: string | null;
   onDragStart?: (taskId: string) => void;
   onDragEnd?: () => void;
+  categories?: TaskCategory[];
 }
 
 const TaskItem: React.FC<TaskItemProps> = ({
   task, allTasks, onUpdateTask, onDeleteTask, onEditTask, onViewTask, onAddSubtask, onCarryOver, onExtendSeries, onReparent, jiraIssueKey, level,
-  draggedTaskId, onDragStart, onDragEnd
+  draggedTaskId, onDragStart, onDragEnd, categories
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [showCancelPrompt, setShowCancelPrompt] = useState(false);
@@ -64,6 +65,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
     return task.date === lastDate;
   }, [task, allTasks]);
+
+  const category = task.categoryId && categories ? categories.find(c => c.id === task.categoryId) : null;
 
   const handleStatusToggle = async () => {
     if (isBusy) return;
@@ -178,7 +181,19 @@ const TaskItem: React.FC<TaskItemProps> = ({
           ${isDragOver && !isDescendant ? 'ring-2 ring-primary ring-offset-2 border-primary' : ''}
         `}
       >
-        <div className="flex items-start gap-3 md:gap-4">
+        {category && (
+          <div 
+            className="absolute bottom-0 right-0 px-3 py-1.5 text-[10px] font-bold rounded-tl-xl rounded-br-[14px] border-t border-l pointer-events-none z-10"
+            style={{ 
+              backgroundColor: `${category.color}15`, 
+              color: category.color,
+              borderColor: `${category.color}30`
+            }}
+          >
+            {category.name}
+          </div>
+        )}
+        <div className="flex items-start gap-3 md:gap-4 relative z-0">
           {/* Drag Handle */}
           <div
             className="mt-1 text-slate-300 dark:text-slate-600 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
@@ -394,6 +409,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               draggedTaskId={draggedTaskId}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
+              categories={categories}
             />
           ))}
         </div>
