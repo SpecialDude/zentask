@@ -1,18 +1,19 @@
 
 import React, { useState, useCallback } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { TaskStatus, TaskPriority, RecurrencePattern } from '../types';
+import { TaskStatus, TaskPriority, RecurrencePattern, TaskCategory } from '../types';
 import { scrollInputIntoView } from '../utils';
 import VoiceRecorder from './VoiceRecorder';
 
 interface AIModalProps {
   onClose: () => void;
   onPlanGenerated: (tasks: any[]) => void;
+  categories: TaskCategory[];
 }
 
 type InputMode = 'text' | 'voice';
 
-const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated }) => {
+const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated, categories }) => {
   const [input, setInput] = useState('');
   const [inputMode, setInputMode] = useState<InputMode>('text');
   const [loading, setLoading] = useState(false);
@@ -44,6 +45,7 @@ Each object MUST have:
 - 'priority' (optional, one of: LOW, MEDIUM, HIGH, URGENT - infer from urgency words)
 - 'isRecurring' (optional boolean, true if task repeats regularly)
 - 'recurrencePattern' (optional, one of: DAILY, WEEKLY, MONTHLY, WEEKDAYS - only if isRecurring is true)
+- 'categoryId' (optional, string). Match the task context to one of the following user categories if highly appropriate. If no category fits perfectly, omit this field. User Categories: ${categories.length > 0 ? JSON.stringify(categories.map(c => ({id: c.id, name: c.name}))) : 'None available'}
 - 'subtasks' (optional, array of same structure)
 - 'date' (optional, YYYY-MM-DD format. If a date is mentioned or can be inferred, otherwise omit it. A task and its subtasks must share the same date. Today's date is ${new Date().toISOString().split('T')[0]})
 If you see a sequence, nest them appropriately. If a time is mentioned, include it. Infer priority from urgency cues.
@@ -57,6 +59,7 @@ IMPORTANT: Do NOT include relative date references (like 'tomorrow', 'next week'
                 title: { type: Type.STRING },
                 description: { type: Type.STRING },
                 date: { type: Type.STRING },
+                categoryId: { type: Type.STRING },
                 startTime: { type: Type.STRING },
                 duration: { type: Type.NUMBER },
                 priority: { type: Type.STRING },
@@ -70,6 +73,7 @@ IMPORTANT: Do NOT include relative date references (like 'tomorrow', 'next week'
                       title: { type: Type.STRING },
                       description: { type: Type.STRING },
                       date: { type: Type.STRING },
+                      categoryId: { type: Type.STRING },
                       startTime: { type: Type.STRING },
                       duration: { type: Type.NUMBER },
                       priority: { type: Type.STRING },
@@ -117,7 +121,9 @@ IMPORTANT: Do NOT include relative date references (like 'tomorrow', 'next week'
     URGENT: 'bg-red-100 text-red-600'
   };
 
-  const renderPreviewTask = (task: any, depth = 0) => (
+  const renderPreviewTask = (task: any, depth = 0) => {
+    const category = task.categoryId ? categories.find(c => c.id === task.categoryId) : null;
+    return (
     <div key={task.title + depth} className={`p-3 bg-slate-50 dark:bg-slate-800 rounded-xl ${depth > 0 ? 'ml-4 border-l-2 border-primary/30' : ''}`}>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="font-semibold text-sm text-slate-800 dark:text-slate-100">{task.title}</span>
@@ -139,6 +145,14 @@ IMPORTANT: Do NOT include relative date references (like 'tomorrow', 'next week'
             📅 {new Date(task.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </span>
         )}
+        {category && (
+          <span 
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+            style={{ borderColor: category.color, color: category.color, backgroundColor: `${category.color}15` }}
+          >
+            {category.name}
+          </span>
+        )}
       </div>
       {task.description && (
         <p className="text-xs text-slate-500 mt-1 line-clamp-2">{task.description}</p>
@@ -150,6 +164,7 @@ IMPORTANT: Do NOT include relative date references (like 'tomorrow', 'next week'
       )}
     </div>
   );
+  };
 
   // Preview Mode
   if (previewTasks) {

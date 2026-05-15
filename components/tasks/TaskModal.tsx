@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Task, TaskStatus, TaskPriority, RecurrencePattern } from '../../types';
+import { Task, TaskStatus, TaskPriority, RecurrencePattern, TaskCategory } from '../../types';
 import { scrollInputIntoView } from '../../utils';
 
 interface TaskModalProps {
@@ -9,9 +9,10 @@ interface TaskModalProps {
   initialData?: Task;
   prefilledData?: Partial<Task>;
   isSubtask?: boolean;
+  categories: TaskCategory[];
 }
 
-const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, prefilledData, isSubtask }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, prefilledData, isSubtask, categories }) => {
   const source = initialData || prefilledData;
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -25,7 +26,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, pre
     isRecurring: source?.isRecurring || false,
     recurrencePattern: source?.recurrencePattern || undefined as RecurrencePattern | undefined,
     recurrenceEndDate: source?.recurrenceEndDate || '',
-    review: initialData?.review || ''
+    review: initialData?.review || '',
+    categoryId: source?.categoryId || null
   });
 
   const priorityOptions: { value: TaskPriority; label: string; color: string; bgColor: string }[] = [
@@ -114,6 +116,25 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, onSave, initialData, pre
               />
             </div>
           </div>
+
+          {/* Category Selector */}
+          {categories && categories.length > 0 && (
+            <div className="space-y-1 md:space-y-2">
+              <label className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-slate-400">Category</label>
+              <select
+                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-primary focus:ring-0 rounded-xl px-4 py-2.5 text-xs md:text-sm transition-all outline-none"
+                value={formData.categoryId || ''}
+                onChange={e => setFormData({ ...formData, categoryId: e.target.value || null })}
+              >
+                <option value="">No Category</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Priority Selector */}
           <div className="space-y-1 md:space-y-2">

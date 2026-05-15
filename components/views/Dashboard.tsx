@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Task, TaskStatus, TaskPriority } from '../../types';
+import { Task, TaskStatus, TaskPriority, TaskCategory } from '../../types';
 
 interface DashboardProps {
     tasks: Task[];
@@ -7,11 +7,12 @@ interface DashboardProps {
     onTaskClick: (task: Task) => void;
     onGoToDate: (date: string) => void;
     onExtendSeries?: (task: Task) => void;
+    categories: TaskCategory[];
 }
 
 type TimelineScale = 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
 
-const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick, onGoToDate, onExtendSeries }) => {
+const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick, onGoToDate, onExtendSeries, categories }) => {
     const [timelineScale, setTimelineScale] = React.useState<TimelineScale>('DAY');
 
     const stats = useMemo(() => {
@@ -352,12 +353,26 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
         );
     };
 
-    const TaskCard = ({ task, showDate = false }: { task: Task, showDate?: boolean }) => (
+    const TaskCard = ({ task, showDate = false }: { task: Task, showDate?: boolean }) => {
+        const category = task.categoryId ? categories.find(c => c.id === task.categoryId) : null;
+        return (
         <div
             onClick={() => onTaskClick(task)}
-            className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-primary dark:hover:border-primary/50 cursor-pointer transition-all hover:shadow-md group"
+            className="relative overflow-hidden bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-primary dark:hover:border-primary/50 cursor-pointer transition-all hover:shadow-md group"
         >
-            <div className="flex items-center justify-between mb-2">
+            {category && (
+                <div 
+                    className="absolute bottom-0 right-0 px-3 py-1.5 text-[10px] font-bold rounded-tl-xl border-t border-l pointer-events-none"
+                    style={{ 
+                        backgroundColor: `${category.color}15`, 
+                        color: category.color,
+                        borderColor: `${category.color}30`
+                    }}
+                >
+                    {category.name}
+                </div>
+            )}
+            <div className="flex items-start justify-between mb-2 relative z-10">
                 <div className="flex items-center gap-2">
                     {task.priority && (
                         <span className={`w-2 h-2 rounded-full ${task.priority === TaskPriority.URGENT ? 'bg-red-500' :
@@ -374,13 +389,15 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
                         </svg>
                     )}
                 </div>
-                {showDate && (
-                    <span className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded-md text-slate-500">
-                        {new Date(task.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
-                )}
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    {showDate && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded-md text-slate-500">
+                            {new Date(task.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                    )}
+                </div>
             </div>
-            <h4 className="font-bold text-slate-800 dark:text-slate-100 group-hover:text-primary transition-colors truncate">
+            <h4 className="font-bold text-slate-800 dark:text-slate-100 group-hover:text-primary transition-colors truncate relative z-10">
                 {task.title}
             </h4>
             {task.description && (
@@ -390,6 +407,7 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
             )}
         </div>
     );
+    };
 
     return (
         <div className="max-w-6xl mx-auto space-y-8 pb-12">

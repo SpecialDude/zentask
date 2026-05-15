@@ -1,5 +1,5 @@
 import React from 'react';
-import { Task, TaskStatus, TaskPriority, RecurrencePattern } from '../../types';
+import { Task, TaskStatus, TaskPriority, RecurrencePattern, TaskCategory } from '../../types';
 import { formatDuration } from '../../utils';
 
 interface TaskDetailModalProps {
@@ -7,9 +7,10 @@ interface TaskDetailModalProps {
     allTasks: Task[];
     onClose: () => void;
     onEdit: () => void;
+    categories: TaskCategory[];
 }
 
-const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, allTasks, onClose, onEdit }) => {
+const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, allTasks, onClose, onEdit, categories }) => {
     const priorityConfig: Record<TaskPriority, { label: string; color: string; bg: string }> = {
         [TaskPriority.LOW]: { label: 'Low', color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
         [TaskPriority.MEDIUM]: { label: 'Medium', color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
@@ -37,6 +38,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, allTasks, onClo
     // Calculate parent and subtasks
     const parentTask = task.parentId ? allTasks.find(t => t.id === task.parentId) : null;
     const subtasks = allTasks.filter(t => t.parentId === task.id && t.date === task.date);
+    const category = task.categoryId ? categories.find(c => c.id === task.categoryId) : null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -52,6 +54,14 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ task, allTasks, onClo
                             {priority && (
                                 <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${priority.bg} ${priority.color}`}>
                                     {priority.label}
+                                </span>
+                            )}
+                            {category && (
+                                <span 
+                                    className="px-2.5 py-1 rounded-lg text-xs font-bold border border-current"
+                                    style={{ color: category.color, backgroundColor: `${category.color}15` }}
+                                >
+                                    {category.name}
                                 </span>
                             )}
                             {task.isRecurring && task.recurrencePattern && (

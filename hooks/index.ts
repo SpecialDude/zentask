@@ -11,4 +11,5 @@ export { useQuickLists } from './useQuickLists';
 export { useDebounce } from './useDebounce';
 export { useJira } from './useJira';
 export { useTaskSuggestions } from './useTaskSuggestions';
+export { useCategories } from './useCategories';
 
