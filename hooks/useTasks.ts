@@ -224,16 +224,16 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
     // Delete a task
     const deleteTask = useCallback(async (
         id: string,
-        deleteAll = false,
+        deleteType: 'one' | 'all' | 'following' = 'one',
         confirmed = false,
         onNeedConfirmation?: (config: { id: string; title: string }) => void,
-        onNeedRecurringChoice?: (config: { id: string; title: string; deleteAll: boolean }) => void
+        onNeedRecurringChoice?: (config: { id: string; title: string }) => void
     ) => {
         const task = tasks.find(t => t.id === id);
         if (!task) return;
 
         if (task.isRecurring && !confirmed) {
-            onNeedRecurringChoice?.({ id, title: task.title, deleteAll });
+            onNeedRecurringChoice?.({ id, title: task.title });
             return;
         }
 
@@ -259,18 +259,63 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
             return filtered;
         };
 
-        if (deleteAll && task.isRecurring) {
-            const parentId = task.recurringParentId || task.id;
+        if (task.isRecurring && deleteType !== 'one') {
+            const baseTaskId = task.recurringParentId || task.id;
 
-            // Bulk delete: first all instances (children of the parent), then the parent itself
-            const { error: instErr } = await supabase.from('tasks').delete().eq('recurringParentId', parentId);
-            if (instErr) console.error('Error deleting recurring instances:', instErr);
+            if (deleteType === 'all') {
+                // Bulk delete: first all instances (children of the parent), then the parent itself
+                const { error: instErr } = await supabase.from('tasks').delete().eq('recurringParentId', baseTaskId);
+                if (instErr) console.error('Error deleting recurring instances:', instErr);
 
-            const { error: parentErr } = await supabase.from('tasks').delete().eq('id', parentId);
-            if (parentErr) console.error('Error deleting recurring parent:', parentErr);
+                const { error: parentErr } = await supabase.from('tasks').delete().eq('id', baseTaskId);
+                if (parentErr) console.error('Error deleting recurring parent:', parentErr);
 
-            setTasks(prev => prev.filter(t => t.id !== parentId && t.recurringParentId !== parentId));
-            showToast('Recurring series deleted', 'success');
+                setTasks(prev => prev.filter(t => t.id !== baseTaskId && t.recurringParentId !== baseTaskId));
+                showToast('Recurring series deleted', 'success');
+            } else if (deleteType === 'following') {
+                const targetDate = task.date;
+
+                // 1. Delete instances from DB
+                const { error: instErr } = await supabase.from('tasks')
+                    .delete()
+                    .eq('recurringParentId', baseTaskId)
+                    .gte('date', targetDate);
+                if (instErr) console.error('Error deleting following instances:', instErr);
+
+                // 2. Delete base task if it matches date criteria
+                const { error: parentErr } = await supabase.from('tasks')
+                    .delete()
+                    .eq('id', baseTaskId)
+                    .gte('date', targetDate);
+                if (parentErr) console.error('Error deleting following parent:', parentErr);
+
+                // 3. Update base task end date if it survives
+                const baseTask = tasks.find(t => t.id === baseTaskId);
+                if (baseTask && baseTask.date < targetDate) {
+                    const prevDate = new Date(targetDate);
+                    prevDate.setDate(prevDate.getDate() - 1);
+                    const prevDateStr = prevDate.toISOString().split('T')[0];
+                    await supabase.from('tasks').update({ recurrenceEndDate: prevDateStr, updatedAt: Date.now() }).eq('id', baseTaskId);
+                }
+
+                setTasks(prev => {
+                    // Filter out deleted tasks locally
+                    let updated = prev.filter(t => 
+                        !(t.recurringParentId === baseTaskId && t.date >= targetDate) &&
+                        !(t.id === baseTaskId && t.date >= targetDate)
+                    );
+
+                    // Update base task end date locally if it survived
+                    if (baseTask && baseTask.date < targetDate) {
+                        const prevDate = new Date(targetDate);
+                        prevDate.setDate(prevDate.getDate() - 1);
+                        const prevDateStr = prevDate.toISOString().split('T')[0];
+                        updated = updated.map(t => t.id === baseTaskId ? { ...t, recurrenceEndDate: prevDateStr, updatedAt: Date.now() } : t);
+                    }
+                    return updated;
+                });
+                showToast('This and following instances deleted', 'success');
+            }
         } else {
             await deleteRecursiveDB(task);
             setTasks(prev => deleteRecursiveLocal(id, task.date, prev));
