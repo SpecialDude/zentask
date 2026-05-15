@@ -31,6 +31,34 @@ export interface AdminAnalyticsData {
   total_feedback: number;
 }
 
+export interface AdminAnalyticsTimeSeriesData {
+  date: string;
+  users_joined: number;
+  tasks_created: number;
+  tasks_completed: number;
+  lists_created: number;
+  feedback_submitted: number;
+}
+
+export interface CancelReasonData {
+  reason: string;
+  count: number;
+}
+
+export interface ChurnAnalyticsData {
+  task_outcomes: {
+    completed: number;
+    cancelled: number;
+    abandoned: number;
+    carried_over: number;
+  };
+  user_retention: {
+    active: number;
+    churned: number;
+  };
+  cancel_reasons: CancelReasonData[];
+}
+
 // --- Jira Integration Types ---
 
 export interface JiraConnection {
