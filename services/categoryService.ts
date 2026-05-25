@@ -16,7 +16,7 @@ export const getCategories = async (userId: string): Promise<TaskCategory[]> => 
     return data || [];
 };
 
-export const createCategory = async (category: Omit<TaskCategory, 'createdAt'>): Promise<TaskCategory | null> => {
+export const createCategory = async (category: Omit<TaskCategory, 'id' | 'createdAt'>): Promise<TaskCategory | null> => {
     const newCategory = {
         ...category,
         id: crypto.randomUUID(),

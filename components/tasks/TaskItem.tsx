@@ -176,6 +176,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
         onDrop={handleDrop}
         onClick={() => { if (!wasDragged.current) onViewTask(task); }}
         className={`group relative bg-white dark:bg-slate-900 border-2 rounded-2xl p-3 md:p-4 transition-all shadow-sm hover:shadow-md cursor-pointer
+          ${showCancelPrompt || showCarryPrompt ? 'z-20' : 'z-0'}
           ${task.status === TaskStatus.CANCELLED || task.carriedOverTo ? 'opacity-60' : ''}
           ${isDragging ? 'opacity-50 border-dashed border-primary' : 'border-slate-200 dark:border-slate-800'}
           ${isDragOver && !isDescendant ? 'ring-2 ring-primary ring-offset-2 border-primary' : ''}
@@ -183,7 +184,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
       >
         {category && (
           <div 
-            className="absolute bottom-0 right-0 px-3 py-1.5 text-[10px] font-bold rounded-tl-xl rounded-br-[14px] border-t border-l pointer-events-none z-10"
+            className="absolute bottom-0 left-0 px-3 py-1.5 text-[10px] font-bold rounded-tr-xl rounded-bl-[14px] border-t border-r pointer-events-none z-0"
             style={{ 
               backgroundColor: `${category.color}15`, 
               color: category.color,
@@ -193,7 +194,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             {category.name}
           </div>
         )}
-        <div className="flex items-start gap-3 md:gap-4 relative z-0">
+        <div className="flex items-start gap-3 md:gap-4 relative z-10">
           {/* Drag Handle */}
           <div
             className="mt-1 text-slate-300 dark:text-slate-600 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
