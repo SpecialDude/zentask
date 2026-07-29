@@ -27,33 +27,6 @@
     ],
     "headers": [
         {
-            "source": "/api/mcp/:path*",
-            "headers": [
-                {
-                    "key": "X-Mcp-Origin",
-                    "value": "https://zentask.space"
-                }
-            ]
-        },
-        {
-            "source": "/oauth/:path*",
-            "headers": [
-                {
-                    "key": "X-Mcp-Origin",
-                    "value": "https://zentask.space"
-                }
-            ]
-        },
-        {
-            "source": "/.well-known/:path*",
-            "headers": [
-                {
-                    "key": "X-Mcp-Origin",
-                    "value": "https://zentask.space"
-                }
-            ]
-        },
-        {
             "source": "/(.*)",
             "headers": [
                 {
