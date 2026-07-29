@@ -18,6 +18,29 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
     const howItWorksRef = React.useRef<HTMLElement>(null);
 
     useEffect(() => {
+        // Add animation styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fade-in {
+                from {
+                    opacity: 0;
+                    transform: translateY(10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            .animate-fade-in {
+                animation: fade-in 0.6s ease-out forwards;
+                opacity: 0;
+            }
+        `;
+        document.head.appendChild(style);
+        return () => document.head.removeChild(style);
+    }, []);
+
+    useEffect(() => {
         const handleScroll = () => {
             const currentScrollY = window.scrollY;
             setIsScrolled(currentScrollY > 50);
@@ -77,6 +100,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
             description: 'Let AI help you break down complex projects into actionable tasks automatically.'
         },
         {
+            icon: '🔮',
+            title: 'Claude AI Integration',
+            description: 'Connect Claude to manage your tasks naturally with voice commands and smart assistance.'
+        },
+        {
             icon: '🔄',
             title: 'Recurring Tasks',
             description: 'Set daily, weekly, or monthly recurring tasks. Never forget routine activities.'
@@ -85,6 +113,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
             icon: '📊',
             title: 'Progress Dashboard',
             description: 'Visualize your productivity with insights on completion rates and streaks.'
+        },
+        {
+            icon: '🔗',
+            title: 'Jira Integration',
+            description: 'Import and sync your Jira issues seamlessly with your personal task workflow.'
         },
         {
             icon: '📱',
@@ -169,6 +202,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
             <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-7xl mx-auto">
                     <div className="text-center max-w-4xl mx-auto">
+                        {/* New Feature Badge */}
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 rounded-full mb-6 animate-pulse">
+                            <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                            <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">Now with Claude AI Integration</span>
+                        </div>
+                        
                         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 dark:text-white leading-tight mb-6">
                             Master Your Day,{' '}
                             <span className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
@@ -176,8 +217,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
                             </span>
                         </h1>
                         <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-300 mb-8 max-w-2xl mx-auto">
-                            The beautifully simple task manager that helps you focus on what matters.
-                            AI-powered planning, smart recurring tasks, and insights that keep you motivated.
+                            The beautifully simple task manager with AI-powered planning, Claude integration,
+                            and insights that keep you motivated. Now you can manage tasks by just talking to Claude.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                             <button
@@ -237,7 +278,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
                         {features.map((feature, index) => (
                             <div
                                 key={index}
@@ -254,6 +295,180 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
                                 </p>
                             </div>
                         ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* Claude AI Integration Section */}
+            <section className="py-20 px-4 sm:px-6 lg:px-8">
+                <div className="max-w-7xl mx-auto">
+                    <div className="grid lg:grid-cols-2 gap-12 items-center">
+                        {/* Left Side - Content */}
+                        <div className="space-y-6">
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                                <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                                <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">New Feature</span>
+                            </div>
+                            <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
+                                Talk to Your Tasks with{' '}
+                                <span className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                                    Claude AI
+                                </span>
+                            </h2>
+                            <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed">
+                                Connect ZenTask with Claude to manage your tasks using natural conversation. 
+                                No technical setup required—just connect once and start chatting.
+                            </p>
+
+                            {/* Benefits */}
+                            <div className="space-y-4 pt-4">
+                                <div className="flex items-start gap-4">
+                                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900 dark:text-white mb-1">Natural Conversations</h4>
+                                        <p className="text-slate-600 dark:text-slate-400">
+                                            "Add a task to buy groceries tomorrow" or "What's on my plate today?"
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-4">
+                                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900 dark:text-white mb-1">Hands-Free Management</h4>
+                                        <p className="text-slate-600 dark:text-slate-400">
+                                            Create, update, and complete tasks without opening the app
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-4">
+                                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                                        <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900 dark:text-white mb-1">Secure & Private</h4>
+                                        <p className="text-slate-600 dark:text-slate-400">
+                                            Your tasks stay yours. Claude only accesses what you authorize
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* CTA */}
+                            <div className="pt-6">
+                                <button
+                                    onClick={onGetStarted}
+                                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-semibold rounded-xl hover:shadow-lg hover:scale-105 transition-all"
+                                >
+                                    <span>Get Started Free</span>
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Right Side - Visual Demo */}
+                        <div className="relative">
+                            {/* Floating Chat Bubbles */}
+                            <div className="space-y-4">
+                                {/* User Message */}
+                                <div className="flex justify-end animate-fade-in">
+                                    <div className="max-w-[80%] bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-5 py-3 rounded-2xl rounded-tr-md shadow-lg">
+                                        <p className="text-sm font-medium mb-1">You</p>
+                                        <p>Add "Finish project proposal" as high priority for tomorrow</p>
+                                    </div>
+                                </div>
+
+                                {/* Claude Response */}
+                                <div className="flex justify-start animate-fade-in" style={{ animationDelay: '0.5s' }}>
+                                    <div className="max-w-[80%] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-2xl rounded-tl-md shadow-lg">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-400 to-pink-500"></div>
+                                            <p className="text-sm font-medium text-slate-900 dark:text-white">Claude</p>
+                                        </div>
+                                        <p className="text-slate-700 dark:text-slate-300">✓ Done! I've added "Finish project proposal" as a high priority task due tomorrow.</p>
+                                    </div>
+                                </div>
+
+                                {/* User Message 2 */}
+                                <div className="flex justify-end animate-fade-in" style={{ animationDelay: '1s' }}>
+                                    <div className="max-w-[80%] bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-5 py-3 rounded-2xl rounded-tr-md shadow-lg">
+                                        <p className="text-sm font-medium mb-1">You</p>
+                                        <p>What do I have scheduled for today?</p>
+                                    </div>
+                                </div>
+
+                                {/* Claude Response 2 */}
+                                <div className="flex justify-start animate-fade-in" style={{ animationDelay: '1.5s' }}>
+                                    <div className="max-w-[80%] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-2xl rounded-tl-md shadow-lg">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-400 to-pink-500"></div>
+                                            <p className="text-sm font-medium text-slate-900 dark:text-white">Claude</p>
+                                        </div>
+                                        <div className="text-slate-700 dark:text-slate-300">
+                                            <p className="mb-2">Here's what you have today:</p>
+                                            <ul className="space-y-1 text-sm">
+                                                <li>• ✅ Morning workout (completed)</li>
+                                                <li>• 📧 Reply to client emails</li>
+                                                <li>• 📞 Team standup at 2pm</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Decorative Elements */}
+                            <div className="absolute -top-8 -right-8 w-32 h-32 bg-purple-200 dark:bg-purple-900/30 rounded-full blur-3xl -z-10"></div>
+                            <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-indigo-200 dark:bg-indigo-900/30 rounded-full blur-3xl -z-10"></div>
+                        </div>
+                    </div>
+
+                    {/* How to Connect - Simple Steps */}
+                    <div className="mt-20 max-w-4xl mx-auto">
+                        <h3 className="text-2xl font-bold text-center text-slate-900 dark:text-white mb-12">
+                            Connect in 3 Simple Steps
+                        </h3>
+                        <div className="grid md:grid-cols-3 gap-8">
+                            <div className="text-center">
+                                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                                    1
+                                </div>
+                                <h4 className="font-bold text-slate-900 dark:text-white mb-2">Sign Up</h4>
+                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    Create your free ZenTask account in seconds
+                                </p>
+                            </div>
+                            <div className="text-center">
+                                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                                    2
+                                </div>
+                                <h4 className="font-bold text-slate-900 dark:text-white mb-2">Copy Your Link</h4>
+                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    Get your unique connection link from Settings
+                                </p>
+                            </div>
+                            <div className="text-center">
+                                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                                    3
+                                </div>
+                                <h4 className="font-bold text-slate-900 dark:text-white mb-2">Add to Claude</h4>
+                                <p className="text-sm text-slate-600 dark:text-slate-400">
+                                    Paste the link in Claude.ai and authorize
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
