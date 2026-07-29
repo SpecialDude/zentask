@@ -33,9 +33,16 @@ Deno.serve(async (req) => {
 
     const rawForwarded = req.headers.get("x-forwarded-host") || req.headers.get("x-original-host") || req.headers.get("host") || url.host;
     const firstHost = rawForwarded.split(",")[0].trim();
-    const host = firstHost === "edge-runtime.supabase.com" ? "hvdzprxwvpytxlwzcnic.supabase.co" : firstHost;
-    const proto = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
-    return `${proto}://${host}`;
+
+    // If host is Supabase internal or edge runtime, fallback to production public domain zentask.space
+    if (firstHost.includes("supabase.co") || firstHost.includes("edge-runtime.supabase.com") || firstHost.includes("supabase.net")) {
+      const publicDomain = Deno.env.get("PUBLIC_APP_URL") || "zentask.space";
+      const cleanDomain = publicDomain.replace(/^https?:\/\//, "");
+      return `https://${cleanDomain}`;
+    }
+
+    const proto = firstHost.includes("localhost") || firstHost.includes("127.0.0.1") ? "http" : "https";
+    return `${proto}://${firstHost}`;
   })();
 
   // ── 1. OAuth & Discovery Routes (no auth required) ──
