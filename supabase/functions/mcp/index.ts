@@ -25,24 +25,36 @@ Deno.serve(async (req) => {
   }
 
   const origin = (() => {
+    // 1. Check for explicit origin passed via header (from Vercel proxy)
     const customOrigin = req.headers.get("x-mcp-origin");
     if (customOrigin) return customOrigin.trim();
 
+    // 2. Check for origin in query params
     const queryOrigin = url.searchParams.get("origin");
     if (queryOrigin) return queryOrigin.trim();
 
-    const rawForwarded = req.headers.get("x-forwarded-host") || req.headers.get("x-original-host") || req.headers.get("host") || url.host;
-    const firstHost = rawForwarded.split(",")[0].trim();
-
-    // If host is Supabase internal or edge runtime, fallback to production public domain zentask.space
-    if (firstHost.includes("supabase.co") || firstHost.includes("edge-runtime.supabase.com") || firstHost.includes("supabase.net")) {
-      const publicDomain = Deno.env.get("PUBLIC_APP_URL") || "zentask.space";
-      const cleanDomain = publicDomain.replace(/^https?:\/\//, "");
-      return `https://${cleanDomain}`;
+    // 3. Check x-forwarded-host (set by proxies like Vercel)
+    const forwardedHost = req.headers.get("x-forwarded-host");
+    if (forwardedHost) {
+      const firstHost = forwardedHost.split(",")[0].trim();
+      // Only use forwarded host if it's NOT a Supabase domain
+      if (!firstHost.includes("supabase.co") && !firstHost.includes("supabase.net")) {
+        const proto = firstHost.includes("localhost") || firstHost.includes("127.0.0.1") ? "http" : "https";
+        return `${proto}://${firstHost}`;
+      }
     }
 
-    const proto = firstHost.includes("localhost") || firstHost.includes("127.0.0.1") ? "http" : "https";
-    return `${proto}://${firstHost}`;
+    // 4. Fallback: If we're on a Supabase domain, use the configured public domain
+    const rawHost = req.headers.get("host") || url.host;
+    if (rawHost.includes("supabase.co") || rawHost.includes("supabase.net")) {
+      const publicDomain = Deno.env.get("PUBLIC_APP_URL") || "https://zentask.space";
+      // Ensure it has https:// prefix
+      return publicDomain.startsWith("http") ? publicDomain : `https://${publicDomain}`;
+    }
+
+    // 5. Local development fallback
+    const proto = rawHost.includes("localhost") || rawHost.includes("127.0.0.1") ? "http" : "https";
+    return `${proto}://${rawHost}`;
   })();
 
   // ── 1. OAuth & Discovery Routes (no auth required) ──
