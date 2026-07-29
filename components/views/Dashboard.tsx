@@ -1,5 +1,9 @@
 import React, { useMemo } from 'react';
 import { Task, TaskStatus, TaskPriority, TaskCategory } from '../../types';
+import ProductivityInsights from '../ProductivityInsights';
+import WeeklyReviewModal from '../WeeklyReviewModal';
+import TimeBlockingSuggestion from '../TimeBlockingSuggestion';
+import { analyzeCarryOverPatterns } from '../../services/insightsService';
 
 interface DashboardProps {
     tasks: Task[];
@@ -14,6 +18,14 @@ type TimelineScale = 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
 
 const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick, onGoToDate, onExtendSeries, categories }) => {
     const [timelineScale, setTimelineScale] = React.useState<TimelineScale>('DAY');
+    const [isWeeklyReviewOpen, setIsWeeklyReviewOpen] = React.useState(false);
+    const [dismissedSuggestions, setDismissedSuggestions] = React.useState<Set<string>>(new Set());
+
+    // Calculate insights for time-blocking suggestions
+    const productivityInsights = useMemo(() => 
+        analyzeCarryOverPatterns(tasks, 7),
+        [tasks]
+    );
 
     const stats = useMemo(() => {
         const today = new Date().toISOString().split('T')[0];
@@ -414,11 +426,22 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
             {/* Welcome & Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 bg-gradient-to-br from-primary to-indigo-700 rounded-[2rem] p-8 text-white shadow-xl shadow-primary/20 flex flex-col justify-between min-h-[220px]">
-                    <div>
-                        <h2 className="text-3xl font-extrabold mb-2">My Productivity</h2>
-                        <p className="text-indigo-100 text-sm max-w-md">
-                            On {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}, you've tackled {stats.total} tasks. Keep your {stats.streak}-day streak alive!
-                        </p>
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <h2 className="text-3xl font-extrabold mb-2">My Productivity</h2>
+                            <p className="text-indigo-100 text-sm max-w-md">
+                                On {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}, you've tackled {stats.total} tasks. Keep your {stats.streak}-day streak alive!
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => setIsWeeklyReviewOpen(true)}
+                            className="px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white font-semibold rounded-xl transition-all hover:scale-105 flex items-center gap-2 text-sm"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            Weekly Review
+                        </button>
                     </div>
                     <div className="flex items-center gap-6 mt-6">
                         <div className="flex flex-col">
@@ -468,6 +491,30 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
 
             {/* Timeline Visualization */}
             <TimelineGraph />
+
+            {/* Productivity Insights */}
+            <ProductivityInsights 
+                tasks={tasks} 
+                apiKey={process.env.GEMINI_API_KEY || ''} 
+            />
+
+            {/* Time-Blocking Suggestion */}
+            {!dismissedSuggestions.has('time-blocking') && (
+                <TimeBlockingSuggestion
+                    tasks={tasks}
+                    insights={productivityInsights}
+                    onAssignTime={(taskId, startTime, duration) => {
+                        // This will be handled by parent component
+                        console.log('Assign time:', taskId, startTime, duration);
+                        // TODO: Update task with startTime and duration
+                    }}
+                    onDismiss={() => {
+                        const newDismissed = new Set(dismissedSuggestions);
+                        newDismissed.add('time-blocking');
+                        setDismissedSuggestions(newDismissed);
+                    }}
+                />
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Column: Pending & Upcoming */}
@@ -623,6 +670,17 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
                     </div>
                 </div>
             </div>
+
+            {/* Weekly Review Modal */}
+            <WeeklyReviewModal
+                isOpen={isWeeklyReviewOpen}
+                onClose={() => setIsWeeklyReviewOpen(false)}
+                tasks={tasks}
+                onTaskClick={(task) => {
+                    setIsWeeklyReviewOpen(false);
+                    onTaskClick(task);
+                }}
+            />
         </div>
     );
 };
