@@ -9,6 +9,7 @@ interface QuickListsPageProps {
     onDelete: (id: string) => void;
     onTogglePin: (list: QuickList, e: React.MouseEvent) => void;
     onCreateNew: (type?: ListType) => void;
+    onMoveItemToDate?: (listId: string, itemId: string, content: string, date: string) => Promise<boolean>;
     onOpenInModal: (list: QuickList) => void;
 }
 
@@ -19,7 +20,8 @@ const ListCardRenderer: React.FC<{
     onDelete: (id: string) => void;
     onTogglePin: (e: React.MouseEvent) => void;
     onOpenInModal: () => void;
-}> = ({ list, onSave, onDelete, onTogglePin, onOpenInModal }) => {
+    onMoveItemToDate?: (listId: string, itemId: string, content: string, date: string) => Promise<boolean>;
+}> = ({ list, onSave, onDelete, onTogglePin, onOpenInModal, onMoveItemToDate }) => {
     if (list.type === 'document') {
         return (
             <QuickListDocumentCard
@@ -28,6 +30,7 @@ const ListCardRenderer: React.FC<{
                 onDelete={onDelete}
                 onTogglePin={onTogglePin}
                 onOpenInModal={onOpenInModal}
+                onMoveBlockToDate={onMoveItemToDate}
             />
         );
     }
@@ -38,11 +41,12 @@ const ListCardRenderer: React.FC<{
             onDelete={onDelete}
             onTogglePin={onTogglePin}
             onOpenInModal={onOpenInModal}
+            onMoveItemToDate={onMoveItemToDate}
         />
     );
 };
 
-const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete, onTogglePin, onCreateNew, onOpenInModal }) => {
+const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete, onTogglePin, onCreateNew, onMoveItemToDate, onOpenInModal }) => {
     const [showTypeMenu, setShowTypeMenu] = useState(false);
 
     const { pinnedLists, groupedLists } = useMemo(() => {
@@ -165,6 +169,7 @@ const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete
                                 onDelete={onDelete}
                                 onTogglePin={(e) => onTogglePin(list, e)}
                                 onOpenInModal={() => onOpenInModal(list)}
+                                onMoveItemToDate={onMoveItemToDate}
                             />
                         ))}
                     </div>
@@ -202,6 +207,7 @@ const QuickListsPage: React.FC<QuickListsPageProps> = ({ lists, onSave, onDelete
                                     onDelete={onDelete}
                                     onTogglePin={(e) => onTogglePin(list, e)}
                                     onOpenInModal={() => onOpenInModal(list)}
+                                    onMoveItemToDate={onMoveItemToDate}
                                 />
                             ))}
                         </div>
