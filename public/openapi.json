@@ -1,0 +1,283 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ZenTask API for ChatGPT Custom GPTs",
+    "description": "API for managing hierarchical tasks, subtasks, quicklists, and categories in ZenTask.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://zentask.space/api/v1",
+      "description": "ZenTask Production API Server"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Provide your ZenTask API Key generated in Settings (e.g. zt_live_...)"
+      }
+    }
+  },
+  "paths": {
+    "/tasks": {
+      "get": {
+        "summary": "List tasks",
+        "description": "Query tasks filtered by date, status, priority, category, or search string.",
+        "operationId": "listTasks",
+        "parameters": [
+          { "name": "date", "in": "query", "schema": { "type": "string" }, "description": "Filter by date (YYYY-MM-DD)" },
+          { "name": "status", "in": "query", "schema": { "type": "string" }, "description": "Filter by status: todo, in_progress, completed, carried_over" },
+          { "name": "priority", "in": "query", "schema": { "type": "string" }, "description": "Filter by priority: low, medium, high" },
+          { "name": "categoryId", "in": "query", "schema": { "type": "string" }, "description": "Filter by category ID" },
+          { "name": "query", "in": "query", "schema": { "type": "string" }, "description": "Search term to match title or description" }
+        ],
+        "responses": {
+          "200": { "description": "List of tasks retrieved successfully" }
+        }
+      },
+      "post": {
+        "summary": "Create a task",
+        "description": "Create a new task or subtask.",
+        "operationId": "createTask",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title"],
+                "properties": {
+                  "title": { "type": "string" },
+                  "description": { "type": "string" },
+                  "date": { "type": "string", "description": "Date YYYY-MM-DD" },
+                  "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+                  "duration": { "type": "number", "description": "Duration in minutes" },
+                  "startTime": { "type": "string", "description": "HH:MM format" },
+                  "categoryId": { "type": "string" },
+                  "parentId": { "type": "string", "description": "Parent task ID for subtasks" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Task created successfully" }
+        }
+      }
+    },
+    "/tasks/{id}": {
+      "get": {
+        "summary": "Get task details",
+        "operationId": "getTask",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Task details" }
+        }
+      },
+      "patch": {
+        "summary": "Update task",
+        "operationId": "updateTask",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "description": { "type": "string" },
+                  "status": { "type": "string", "enum": ["todo", "in_progress", "completed", "carried_over"] },
+                  "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+                  "duration": { "type": "number" },
+                  "startTime": { "type": "string" },
+                  "completion": { "type": "number", "description": "Completion percentage 0-100" },
+                  "categoryId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Task updated" }
+        }
+      },
+      "delete": {
+        "summary": "Delete task",
+        "operationId": "deleteTask",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Task deleted" }
+        }
+      }
+    },
+    "/tasks/{id}/status": {
+      "patch": {
+        "summary": "Update task status",
+        "operationId": "updateTaskStatus",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {
+                  "status": { "type": "string", "enum": ["todo", "in_progress", "completed", "carried_over"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Task status updated" }
+        }
+      }
+    },
+    "/summary": {
+      "get": {
+        "summary": "Get daily productivity summary",
+        "operationId": "getDailySummary",
+        "parameters": [
+          { "name": "date", "in": "query", "schema": { "type": "string" }, "description": "Date YYYY-MM-DD (defaults to today)" }
+        ],
+        "responses": {
+          "200": { "description": "Productivity summary data" }
+        }
+      }
+    },
+    "/lists": {
+      "get": {
+        "summary": "List quick lists",
+        "operationId": "listQuickLists",
+        "responses": {
+          "200": { "description": "User lists retrieved" }
+        }
+      },
+      "post": {
+        "summary": "Create quick list",
+        "operationId": "createQuickList",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title"],
+                "properties": {
+                  "title": { "type": "string" },
+                  "type": { "type": "string", "enum": ["bullet", "checkbox", "numbered", "document"] },
+                  "items": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "List created" }
+        }
+      }
+    },
+    "/lists/{id}": {
+      "get": {
+        "summary": "Get quick list details",
+        "operationId": "getQuickList",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "List details" }
+        }
+      },
+      "delete": {
+        "summary": "Delete quick list",
+        "operationId": "deleteQuickList",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "List deleted" }
+        }
+      }
+    },
+    "/lists/{id}/items": {
+      "post": {
+        "summary": "Add items to quick list",
+        "operationId": "addListItems",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["items"],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Items added" }
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "summary": "List task categories",
+        "operationId": "listCategories",
+        "responses": {
+          "200": { "description": "Categories retrieved" }
+        }
+      },
+      "post": {
+        "summary": "Create category",
+        "operationId": "createCategory",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "color": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Category created" }
+        }
+      }
+    }
+  }
+}

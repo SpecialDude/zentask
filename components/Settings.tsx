@@ -32,6 +32,67 @@ const Settings: React.FC<SettingsProps> = ({
     const [categoryLoading, setCategoryLoading] = useState(false);
     const [deleteCategoryId, setDeleteCategoryId] = useState<string | null>(null);
 
+    // MCP / API Keys State
+    const [apiKeys, setApiKeys] = useState<any[]>([]);
+    const [apiKeysLoading, setApiKeysLoading] = useState(false);
+    const [newKeyName, setNewKeyName] = useState('');
+    const [createdRawToken, setCreatedRawToken] = useState<string | null>(null);
+    const [keyMessage, setKeyMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    React.useEffect(() => {
+        loadApiKeys();
+    }, []);
+
+    const loadApiKeys = async () => {
+        setApiKeysLoading(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                const { fetchUserApiKeys } = await import('../services/apiKeyService');
+                const keys = await fetchUserApiKeys(user.id);
+                setApiKeys(keys);
+            }
+        } catch (err) {
+            console.error('Failed to load API keys:', err);
+        } finally {
+            setApiKeysLoading(false);
+        }
+    };
+
+    const handleCreateApiKey = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setKeyMessage(null);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                setKeyMessage({ type: 'error', text: 'User session not found' });
+                return;
+            }
+            const { createApiKey } = await import('../services/apiKeyService');
+            const result = await createApiKey(user.id, newKeyName || 'MCP Client Key');
+            setCreatedRawToken(result.rawToken);
+            setNewKeyName('');
+            setKeyMessage({ type: 'success', text: 'API Key generated successfully! Save it now; it won\'t be shown again.' });
+            loadApiKeys();
+        } catch (err: any) {
+            setKeyMessage({ type: 'error', text: err.message || 'Failed to generate API Key' });
+        }
+    };
+
+    const handleRevokeApiKey = async (keyId: string) => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const { revokeApiKey } = await import('../services/apiKeyService');
+            await revokeApiKey(keyId, user.id);
+            setKeyMessage({ type: 'success', text: 'API Key revoked successfully' });
+            loadApiKeys();
+        } catch (err: any) {
+            setKeyMessage({ type: 'error', text: err.message || 'Failed to revoke API key' });
+        }
+    };
+
+
     const handleNameUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         setNameMessage(null);
@@ -384,6 +445,236 @@ const Settings: React.FC<SettingsProps> = ({
                     </button>
                 </div>
             </div>
+
+            {/* MCP Integration & API Keys Section */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 mb-6">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                    Model Context Protocol (MCP) & API Keys
+                </h2>
+                <p className="text-sm text-slate-500 mb-6">
+                    Connect ZenTask to your local or remote AI assistants (Claude Desktop, Antigravity, Cursor, Codex). Generate personal API keys to allow AI agents to manage your tasks and lists securely.
+                </p>
+
+                {/* Integration Quick Start Banner for Claude Connectors */}
+                <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl mb-6 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-900 dark:text-indigo-200">
+                                Claude.ai &amp; Claude Desktop (OAuth Connector)
+                            </h3>
+                        </div>
+                        <span className="px-2 py-0.5 bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 text-[10px] font-bold rounded-full">
+                            Recommended for Claude Web / Desktop
+                        </span>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        To add ZenTask to <strong>Claude.ai</strong> or <strong>Claude Desktop</strong>, simply copy the URL below and paste it into Claude under <em>Settings &rarr; Connectors &rarr; Add Custom MCP Server</em>. No API key needed — Claude will prompt you to log in securely!
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            readOnly
+                            value={`${window.location.origin}/api/mcp`}
+                            className="flex-1 px-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800/80 rounded-xl text-xs font-mono text-slate-800 dark:text-slate-200 select-all outline-none"
+                        />
+                        <button
+                            onClick={() => {
+                                const url = `${window.location.origin}/api/mcp`;
+                                navigator.clipboard.writeText(url);
+                                setKeyMessage({ type: 'success', text: 'Claude Remote MCP URL copied to clipboard!' });
+                            }}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 flex-shrink-0"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            <span>Copy URL</span>
+                        </button>
+                    </div>
+                </div>
+
+                {keyMessage && (
+                    <div className={`p-4 rounded-xl mb-4 text-sm font-semibold flex items-center justify-between ${
+                        keyMessage.type === 'success' 
+                            ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' 
+                            : 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800'
+                    }`}>
+                        <span>{keyMessage.text}</span>
+                        <button onClick={() => setKeyMessage(null)} className="text-xs opacity-60 hover:opacity-100">✕</button>
+                    </div>
+                )}
+
+                {createdRawToken && (
+                    <div className="p-5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-2xl mb-6 space-y-4">
+                        <div>
+                            <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                                    Your New API Key & MCP Connections (Copy Now!)
+                                </span>
+                            </div>
+                            <p className="text-xs text-amber-600 dark:text-amber-300">
+                                Save these commands and URLs now. You won't be able to see this token again!
+                            </p>
+                        </div>
+
+                        {/* Option 1: Claude Code CLI Command */}
+                        <div className="p-3 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800/80 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                                    <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 text-[10px] font-mono rounded font-bold">Claude Code CLI</span>
+                                    Run in Terminal
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        const cmd = `claude mcp add --transport sse zentask "${window.location.origin}/api/mcp?key=${createdRawToken}"`;
+                                        navigator.clipboard.writeText(cmd);
+                                        setKeyMessage({ type: 'success', text: 'Claude Code command copied to clipboard!' });
+                                    }}
+                                    className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg transition-all flex items-center gap-1"
+                                >
+                                    <span>Copy Command</span>
+                                </button>
+                            </div>
+                            <input
+                                type="text"
+                                readOnly
+                                value={`claude mcp add --transport sse zentask "${window.location.origin}/api/mcp?key=${createdRawToken}"`}
+                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 select-all outline-none"
+                            />
+                        </div>
+
+                        {/* Option 2: Generic SSE / Cursor / OpenCode URL */}
+                        <div className="p-3 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800/80 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                                    <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 text-[10px] font-mono rounded font-bold">Cursor / OpenCode / Remote SSE</span>
+                                    Direct MCP URL
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        const url = `${window.location.origin}/api/mcp?key=${createdRawToken}`;
+                                        navigator.clipboard.writeText(url);
+                                        setKeyMessage({ type: 'success', text: 'MCP URL copied to clipboard!' });
+                                    }}
+                                    className="px-3 py-1 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white font-bold text-xs rounded-lg transition-all"
+                                >
+                                    <span>Copy URL</span>
+                                </button>
+                            </div>
+                            <input
+                                type="text"
+                                readOnly
+                                value={`${window.location.origin}/api/mcp?key=${createdRawToken}`}
+                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-800 dark:text-slate-200 select-all outline-none"
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Active Connected Services & API Keys List */}
+                <div className="space-y-3 mb-6">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                            Active Connected Services &amp; API Keys
+                        </h3>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                            {apiKeys.length} {apiKeys.length === 1 ? 'key' : 'keys'} active
+                        </span>
+                    </div>
+
+                    {apiKeysLoading ? (
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl text-xs text-slate-400 italic">
+                            Loading connections...
+                        </div>
+                    ) : apiKeys.length === 0 ? (
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                            No active API keys found. Generate a key below or copy the OAuth URL above to connect <strong>Claude.ai</strong>, <strong>Claude Desktop</strong>, or <strong>Cursor</strong>.
+                        </div>
+                    ) : (
+                        apiKeys.map((key) => {
+                            const lastUsed = key.last_used_at ? Number(key.last_used_at) : null;
+                            const diffMs = lastUsed ? Date.now() - lastUsed : null;
+                            const diffMins = diffMs !== null ? Math.floor(diffMs / 60000) : null;
+                            const diffHours = diffMins !== null ? Math.floor(diffMins / 60) : null;
+                            const diffDays = diffHours !== null ? Math.floor(diffHours / 24) : null;
+
+                            let statusText = 'Never used';
+                            let isRecent = false;
+                            if (diffMins !== null) {
+                                if (diffMins < 1) { statusText = 'Active just now'; isRecent = true; }
+                                else if (diffMins < 60) { statusText = `Active ${diffMins}m ago`; isRecent = diffMins <= 15; }
+                                else if (diffHours! < 24) { statusText = `Active ${diffHours}h ago`; }
+                                else if (diffDays! < 7) { statusText = `Active ${diffDays}d ago`; }
+                                else { statusText = `Last active ${new Date(lastUsed!).toLocaleDateString()}`; }
+                            }
+
+                            return (
+                                <div key={key.id} className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between gap-4 transition-all hover:border-slate-300 dark:hover:border-slate-600">
+                                    <div className="space-y-1 min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            {/* Status Dot */}
+                                            <span className="relative flex h-2.5 w-2.5">
+                                                {isRecent && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />}
+                                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${lastUsed ? (isRecent ? 'bg-emerald-500' : 'bg-emerald-600/70') : 'bg-slate-300 dark:bg-slate-600'}`} />
+                                            </span>
+                                            <p className="font-bold text-sm text-slate-800 dark:text-slate-100 truncate">{key.name}</p>
+                                            <span className="px-2 py-0.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-mono font-bold rounded">
+                                                API Key
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs text-slate-400 font-mono">
+                                            <span className="truncate">{key.key_prefix}</span>
+                                            <span>•</span>
+                                            <span className={lastUsed ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-slate-400'}>
+                                                {statusText}
+                                            </span>
+                                            <span>•</span>
+                                            <span>Created {new Date(Number(key.created_at)).toLocaleDateString()}</span>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={() => handleRevokeApiKey(key.id)}
+                                        className="px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 hover:text-white hover:bg-red-600 dark:hover:bg-red-600 rounded-xl border border-red-200 dark:border-red-900/60 transition-all flex-shrink-0"
+                                    >
+                                        Revoke Key
+                                    </button>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                {/* Create Key Form */}
+                <form onSubmit={handleCreateApiKey} className="flex items-end gap-3 p-4 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900">
+                    <div className="flex-1">
+                        <label className="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
+                            Key Name
+                        </label>
+                        <input
+                            type="text"
+                            value={newKeyName}
+                            onChange={(e) => setNewKeyName(e.target.value)}
+                            placeholder="e.g., Claude Desktop, Antigravity Client"
+                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                            required
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={!newKeyName.trim()}
+                        className="h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Generate Key
+                    </button>
+                </form>
+            </div>
+
 
             {/* App Info */}
             <div className="text-center text-xs text-slate-400 py-4">

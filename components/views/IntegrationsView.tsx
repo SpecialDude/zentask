@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { JiraIssue } from '../../types';
 import { useAuth } from '../../hooks';
 import { useJira } from '../../hooks/useJira';
-import { JiraConnectButton, JiraProjectCard, JiraProjectSelector, JiraImportModal } from '../integrations';
+import { JiraConnectButton, JiraProjectCard, JiraProjectSelector, JiraImportModal, McpIntegrationsCard } from '../integrations';
 import { getAvailableJiraProjects } from '../../services/jiraService';
 
 interface IntegrationsViewProps {
@@ -44,9 +44,9 @@ const IntegrationsView: React.FC<IntegrationsViewProps> = ({ showToast, updateTa
     }, [jira, importState.projectId, refetchTasks]);
 
     return (
-        <div className="max-w-4xl mx-auto h-full flex flex-col p-2">
+        <div className="max-w-4xl mx-auto h-full flex flex-col p-2 space-y-8 overflow-y-auto custom-scrollbar pb-12">
             {/* Header */}
-            <div className="mb-8">
+            <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -54,7 +54,7 @@ const IntegrationsView: React.FC<IntegrationsViewProps> = ({ showToast, updateTa
                     Integrations
                 </h1>
                 <p className="text-sm text-slate-500 mt-1">
-                    Connect external tools to sync tasks bidirectionally.
+                    Connect external AI tools and issue trackers to sync tasks bidirectionally.
                 </p>
             </div>
 
@@ -68,7 +68,7 @@ const IntegrationsView: React.FC<IntegrationsViewProps> = ({ showToast, updateTa
 
             {/* Projects Section */}
             {jira.isConnected && (
-                <div className="mt-8">
+                <div className="mt-4">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
                             Synced Projects
@@ -109,6 +109,9 @@ const IntegrationsView: React.FC<IntegrationsViewProps> = ({ showToast, updateTa
                     )}
                 </div>
             )}
+
+            {/* Model Context Protocol (MCP) & AI Connections */}
+            <McpIntegrationsCard userId={userId} />
 
             {/* Project Selector Modal */}
             {showProjectSelector && (

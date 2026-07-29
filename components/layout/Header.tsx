@@ -9,11 +9,12 @@ interface HeaderProps {
   onAddTask: () => void;
   onOpenSidebar: () => void;
   onOpenAI: () => void;
+  onOpenVoice?: () => void;
   userEmail?: string;
   userName?: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTask, onOpenSidebar, onOpenAI, userEmail, userName }) => {
+const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTask, onOpenSidebar, onOpenAI, onOpenVoice, userEmail, userName }) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const dateObj = new Date(selectedDate);
@@ -103,6 +104,19 @@ const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTas
             <span className="text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Account</span>
             <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-300 max-w-[80px] sm:max-w-[120px] truncate">{displayName}</span>
           </div>
+
+          {onOpenVoice && (
+            <button
+              onClick={onOpenVoice}
+              className="flex items-center space-x-1.5 bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/40 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 px-3 py-2.5 rounded-xl font-semibold transition-all active:scale-95 text-sm"
+              title="Voice Assistant"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 animate-pulse text-purple-600 dark:text-purple-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+              </svg>
+              <span className="hidden lg:inline">Voice</span>
+            </button>
+          )}
 
           <button
             onClick={onOpenAI}

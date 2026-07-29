@@ -36,6 +36,7 @@ import InstallPrompt from './components/InstallPrompt';
 import DeleteConfirmationModals from './components/DeleteConfirmationModals';
 import MobileFAB from './components/MobileFAB';
 import { useToast } from './components/Toast';
+import OAuthConsent from './components/OAuthConsent';
 
 const App: React.FC = () => {
   const { showToast } = useToast();
@@ -52,6 +53,7 @@ const App: React.FC = () => {
     if (path === '/terms') return 'terms';
     if (path === '/login') return 'login';
     if (path === '/home') return 'home';
+    if (path === '/oauth-consent') return 'oauth-consent';
     return 'app'; // Default to app (dashboard)
   });
 
@@ -60,6 +62,7 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [aiInitialMode, setAiInitialMode] = useState<'text' | 'voice'>('text');
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [parentForSubtask, setParentForSubtask] = useState<string | null>(null);
   const [prefilledData, setPrefilledData] = useState<Partial<Task> | undefined>(undefined);
@@ -198,6 +201,7 @@ const App: React.FC = () => {
       else if (path === '/terms') setCurrentRoute('terms');
       else if (path === '/login') setCurrentRoute('login');
       else if (path === '/home') setCurrentRoute('home');
+      else if (path === '/oauth-consent') setCurrentRoute('oauth-consent');
       else setCurrentRoute('app');
     };
     window.addEventListener('popstate', handlePopState);
@@ -214,6 +218,7 @@ const App: React.FC = () => {
   // Route: Static Pages
   if (currentRoute === 'privacy') return <PrivacyPolicyView />;
   if (currentRoute === 'terms') return <TermsOfServiceView />;
+  if (currentRoute === 'oauth-consent') return <OAuthConsent />;
 
   // Route: Home/Landing page (always accessible)
   if (currentRoute === 'home') {
@@ -261,7 +266,8 @@ const App: React.FC = () => {
           setSelectedDate={setSelectedDate}
           onAddTask={() => handleOpenModal()}
           onOpenSidebar={() => setIsSidebarOpen(true)}
-          onOpenAI={() => setIsAIModalOpen(true)}
+          onOpenAI={() => { setAiInitialMode('text'); setIsAIModalOpen(true); }}
+          onOpenVoice={() => { setAiInitialMode('voice'); setIsAIModalOpen(true); }}
           userEmail={session.user.email}
           userName={userName}
         />
@@ -373,6 +379,7 @@ const App: React.FC = () => {
             onClose={() => setIsAIModalOpen(false)} 
             onPlanGenerated={(tasks) => handleAIPlanGenerated(tasks, selectedDate)} 
             categories={categories}
+            initialMode={aiInitialMode}
           />
         )}
 

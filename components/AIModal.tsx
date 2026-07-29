@@ -9,13 +9,14 @@ interface AIModalProps {
   onClose: () => void;
   onPlanGenerated: (tasks: any[]) => void;
   categories: TaskCategory[];
+  initialMode?: InputMode;
 }
 
 type InputMode = 'text' | 'voice';
 
-const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated, categories }) => {
+const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated, categories, initialMode = 'text' }) => {
   const [input, setInput] = useState('');
-  const [inputMode, setInputMode] = useState<InputMode>('text');
+  const [inputMode, setInputMode] = useState<InputMode>(initialMode);
   const [loading, setLoading] = useState(false);
   const [isAccepting, setIsAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);

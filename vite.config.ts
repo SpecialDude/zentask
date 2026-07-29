@@ -8,6 +8,68 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       host: '0.0.0.0',
+      proxy: {
+        '/api/mcp': {
+          target: env.SUPABASE_URL || 'http://127.0.0.1:54321',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/mcp/, '/functions/v1/mcp'),
+          configure: (proxy, _options) => {
+            proxy.on('proxyReq', (proxyReq, req, _res) => {
+              const rawHost = (req.headers['x-forwarded-host'] || req.headers['host']) as string;
+              if (rawHost) {
+                const host = rawHost.split(',')[0].trim();
+                const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+                proxyReq.setHeader('x-mcp-origin', `${proto}://${host}`);
+              }
+            });
+          }
+        },
+        '/.well-known/oauth-protected-resource': {
+          target: env.SUPABASE_URL || 'http://127.0.0.1:54321',
+          changeOrigin: true,
+          rewrite: (path) => '/functions/v1/mcp' + path,
+          configure: (proxy, _options) => {
+            proxy.on('proxyReq', (proxyReq, req, _res) => {
+              const rawHost = (req.headers['x-forwarded-host'] || req.headers['host']) as string;
+              if (rawHost) {
+                const host = rawHost.split(',')[0].trim();
+                const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+                proxyReq.setHeader('x-mcp-origin', `${proto}://${host}`);
+              }
+            });
+          }
+        },
+        '/.well-known/oauth-authorization-server': {
+          target: env.SUPABASE_URL || 'http://127.0.0.1:54321',
+          changeOrigin: true,
+          rewrite: (path) => '/functions/v1/mcp' + path,
+          configure: (proxy, _options) => {
+            proxy.on('proxyReq', (proxyReq, req, _res) => {
+              const rawHost = (req.headers['x-forwarded-host'] || req.headers['host']) as string;
+              if (rawHost) {
+                const host = rawHost.split(',')[0].trim();
+                const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+                proxyReq.setHeader('x-mcp-origin', `${proto}://${host}`);
+              }
+            });
+          }
+        },
+        '/oauth/': {
+          target: env.SUPABASE_URL || 'http://127.0.0.1:54321',
+          changeOrigin: true,
+          rewrite: (path) => '/functions/v1/mcp' + path,
+          configure: (proxy, _options) => {
+            proxy.on('proxyReq', (proxyReq, req, _res) => {
+              const rawHost = (req.headers['x-forwarded-host'] || req.headers['host']) as string;
+              if (rawHost) {
+                const host = rawHost.split(',')[0].trim();
+                const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+                proxyReq.setHeader('x-mcp-origin', `${proto}://${host}`);
+              }
+            });
+          }
+        }
+      }
     },
     plugins: [react()],
     define: {

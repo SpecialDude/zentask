@@ -4,9 +4,10 @@ import useSpeechRecognition from '../hooks/useSpeechRecognition';
 interface VoiceRecorderProps {
     onTranscriptChange: (transcript: string) => void;
     disabled?: boolean;
+    autoStart?: boolean;
 }
 
-const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptChange, disabled = false }) => {
+const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptChange, disabled = false, autoStart = true }) => {
     const [mode, setMode] = useState<'idle' | 'push-to-talk' | 'toggle'>('idle');
     const [isPushActive, setIsPushActive] = useState(false);
 
@@ -20,6 +21,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onTranscriptChange, disab
         stopListening,
         resetTranscript,
     } = useSpeechRecognition();
+
+    // Auto-start recording on mount if requested
+    useEffect(() => {
+        if (autoStart && isSupported && !isListening && !disabled) {
+            setMode('toggle');
+            startListening();
+        }
+    }, [autoStart, isSupported]);
 
     // Update parent with transcript changes
     useEffect(() => {
