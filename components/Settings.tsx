@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Task, TaskCategory } from '../types';
 import { supabase } from '../supabase';
+import NotificationSettings from './NotificationSettings';
 
 interface SettingsProps {
     tasks: Task[];
@@ -38,10 +39,23 @@ const Settings: React.FC<SettingsProps> = ({
     const [newKeyName, setNewKeyName] = useState('');
     const [createdRawToken, setCreatedRawToken] = useState<string | null>(null);
     const [keyMessage, setKeyMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [userId, setUserId] = useState<string>('');
 
     React.useEffect(() => {
+        loadUser();
         loadApiKeys();
     }, []);
+
+    const loadUser = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                setUserId(user.id);
+            }
+        } catch (err) {
+            console.error('Failed to load user:', err);
+        }
+    };
 
     const loadApiKeys = async () => {
         setApiKeysLoading(true);
@@ -404,6 +418,13 @@ const Settings: React.FC<SettingsProps> = ({
                     </button>
                 </form>
             </div>
+
+            {/* Push Notifications Section */}
+            {userId && (
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 mb-6">
+                    <NotificationSettings userId={userId} />
+                </div>
+            )}
 
             {/* Data Export Section */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 mb-6">

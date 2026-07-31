@@ -2,6 +2,7 @@ import { McpServer } from 'npm:@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'npm:zod';
 import { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import { getTodayStr, syncParents } from '../utils.ts';
+import { notifyTaskCreated, notifyTaskUpdated, notifyTaskDeleted } from '../notificationHelper.ts';
 
 export function registerTaskTools(server: McpServer, supabase: SupabaseClient, userId: string) {
 
@@ -163,6 +164,9 @@ export function registerTaskTools(server: McpServer, supabase: SupabaseClient, u
           await syncParents(supabase, userId, parentId);
         }
 
+        // Queue notification
+        await notifyTaskCreated(supabase, userId, data.title, data.id, targetDate);
+
         return {
           content: [
             {
@@ -236,6 +240,9 @@ export function registerTaskTools(server: McpServer, supabase: SupabaseClient, u
         if (task.parentId) {
           await syncParents(supabase, userId, task.parentId);
         }
+
+        // Queue notification
+        await notifyTaskUpdated(supabase, userId, updatedTask.title, taskId, updatedTask.date);
 
         return {
           content: [
@@ -434,7 +441,7 @@ export function registerTaskTools(server: McpServer, supabase: SupabaseClient, u
       try {
         const { data: task } = await supabase
           .from('tasks')
-          .select('parentId')
+          .select('parentId, title')
           .eq('id', taskId)
           .eq('user_id', userId)
           .single();
@@ -451,6 +458,11 @@ export function registerTaskTools(server: McpServer, supabase: SupabaseClient, u
 
         if (task?.parentId) {
           await syncParents(supabase, userId, task.parentId);
+        }
+
+        // Queue notification
+        if (task?.title) {
+          await notifyTaskDeleted(supabase, userId, task.title);
         }
 
         return {

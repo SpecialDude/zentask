@@ -1,6 +1,7 @@
 import { McpServer } from 'npm:@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'npm:zod';
 import { SupabaseClient } from 'jsr:@supabase/supabase-js@2';
+import { notifyCategoryCreated, notifyCategoryUpdated, notifyCategoryDeleted } from '../notificationHelper.ts';
 
 export function registerCategoryTools(server: McpServer, supabase: SupabaseClient, userId: string) {
 
@@ -63,6 +64,9 @@ export function registerCategoryTools(server: McpServer, supabase: SupabaseClien
         if (error) {
           return { content: [{ type: 'text', text: `Failed to create category: ${error.message}` }] };
         }
+
+        // Queue notification
+        await notifyCategoryCreated(supabase, userId, data.name, data.id);
 
         return {
           content: [

@@ -190,3 +190,114 @@ export interface Feedback {
   email?: string;
   created_at: string;
 }
+
+// =====================================================
+// Push Notifications Types
+// =====================================================
+
+export enum NotificationType {
+  TASK_REMINDER = 'task_reminder',
+  MCP_TASK_CREATED = 'mcp_task_created',
+  MCP_TASK_UPDATED = 'mcp_task_updated',
+  MCP_TASK_DELETED = 'mcp_task_deleted',
+  MCP_LIST_CREATED = 'mcp_list_created',
+  MCP_LIST_UPDATED = 'mcp_list_updated',
+  MCP_LIST_DELETED = 'mcp_list_deleted',
+  MCP_CATEGORY_CREATED = 'mcp_category_created',
+  MCP_CATEGORY_UPDATED = 'mcp_category_updated',
+  MCP_CATEGORY_DELETED = 'mcp_category_deleted',
+}
+
+export enum NotificationStatus {
+  PENDING = 'pending',
+  SENT = 'sent',
+  FAILED = 'failed',
+  CANCELLED = 'cancelled',
+}
+
+export interface PushSubscription {
+  id: string;
+  user_id: string;
+  endpoint: string;
+  p256dh_key: string;
+  auth_key: string;
+  device_name?: string;
+  user_agent?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  last_notified_at?: string;
+}
+
+export interface NotificationPreference {
+  id: string;
+  user_id: string;
+  notification_type: NotificationType;
+  enabled: boolean;
+  reminder_minutes: number; // For task reminders
+  quiet_hours_start?: string; // TIME format HH:MM:SS
+  quiet_hours_end?: string; // TIME format HH:MM:SS
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationQueue {
+  id: string;
+  user_id: string;
+  notification_type: NotificationType;
+  title: string;
+  body: string;
+  icon?: string;
+  badge?: string;
+  tag?: string;
+  data?: Record<string, any>;
+  scheduled_for: string;
+  status: NotificationStatus;
+  attempts: number;
+  error_message?: string;
+  created_at: string;
+  sent_at?: string;
+}
+
+export interface NotificationLog {
+  id: string;
+  user_id: string;
+  subscription_id?: string;
+  notification_type: NotificationType;
+  title: string;
+  body: string;
+  data?: Record<string, any>;
+  status: NotificationStatus;
+  error_message?: string;
+  response_code?: number;
+  created_at: string;
+}
+
+export interface NotificationPayload {
+  title: string;
+  body: string;
+  icon?: string;
+  badge?: string;
+  tag?: string;
+  data?: {
+    type: NotificationType;
+    url?: string;
+    taskId?: string;
+    listId?: string;
+    categoryId?: string;
+    [key: string]: any;
+  };
+  actions?: Array<{
+    action: string;
+    title: string;
+    icon?: string;
+  }>;
+}
+
+export interface WebPushSubscription {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
