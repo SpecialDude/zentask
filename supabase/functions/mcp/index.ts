@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
     });
 
     const server = new McpServer({ name: "zentask-mcp", version: "1.0.0" });
-    registerTools(server, supabase, userId);
+    await registerTools(server, supabase, userId);
     await server.connect(transport as any);
 
     return new Response(body, {
