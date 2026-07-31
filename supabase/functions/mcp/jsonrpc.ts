@@ -1,5 +1,6 @@
 import { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { getTodayStr, syncParents } from "./utils.ts";
+import { notifyCategoryCreated, notifyCategoryUpdated, notifyCategoryDeleted } from "./notificationHelper.ts";
 
 export async function handleJsonRpcRequest(
   rpcReq: any,
@@ -314,10 +315,67 @@ export async function handleJsonRpcRequest(
       }
 
       if (name === "list_categories") {
-        const { data, error } = await supabase.from("categories").select("*").eq("user_id", userId);
+        const { data, error } = await supabase.from("task_categories").select("*").eq("user_id", userId);
         if (error) return errorResponse(-32603, error.message);
         return successResponse({
           content: [{ type: "text", text: JSON.stringify(data || [], null, 2) }]
+        });
+      }
+
+      if (name === "create_category") {
+        const { data, error } = await supabase.from("task_categories").insert({
+          user_id: userId,
+          name: args.name,
+          color: args.color || "#3b82f6",
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }).select().single();
+
+        if (error) return errorResponse(-32603, error.message);
+        await notifyCategoryCreated(supabase, userId, data.name, data.id);
+        return successResponse({
+          content: [{ type: "text", text: `Category created: ${JSON.stringify(data, null, 2)}` }]
+        });
+      }
+
+      if (name === "update_category") {
+        const updates: any = { updatedAt: Date.now() };
+        if (args.name !== undefined) updates.name = String(args.name).trim();
+        if (args.color !== undefined) updates.color = args.color;
+
+        const { data, error } = await supabase.from("task_categories").update(updates)
+          .eq("id", args.categoryId)
+          .eq("user_id", userId)
+          .select().single();
+
+        if (error || !data) return errorResponse(-32602, `Category "${args.categoryId}" not found or failed to update`);
+        await notifyCategoryUpdated(supabase, userId, data.name, data.id);
+        return successResponse({
+          content: [{ type: "text", text: `Category updated: ${JSON.stringify(data, null, 2)}` }]
+        });
+      }
+
+      if (name === "delete_category") {
+        const { data: category, error: fetchErr } = await supabase.from("task_categories")
+          .select("name")
+          .eq("id", args.categoryId)
+          .eq("user_id", userId)
+          .single();
+
+        if (fetchErr || !category) return errorResponse(-32602, `Category "${args.categoryId}" not found`);
+
+        const { error } = await supabase.from("task_categories").delete()
+          .eq("id", args.categoryId)
+          .eq("user_id", userId);
+        if (error) return errorResponse(-32603, error.message);
+
+        await supabase.from("tasks").update({ categoryId: null, updatedAt: Date.now() })
+          .eq("categoryId", args.categoryId)
+          .eq("user_id", userId);
+
+        await notifyCategoryDeleted(supabase, userId, category.name);
+        return successResponse({
+          content: [{ type: "text", text: `Category "${args.categoryId}" deleted successfully.` }]
         });
       }
 

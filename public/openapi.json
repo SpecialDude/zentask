@@ -23,6 +23,27 @@
         "scheme": "bearer",
         "description": "Provide your ZenTask API Key generated in Settings (e.g. zt_live_...)"
       }
+    },
+    "schemas": {
+      "TaskNode": {
+        "type": "object",
+        "description": "A task or subtask. Subtasks may recursively contain their own subtasks.",
+        "properties": {
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "date": { "type": "string", "description": "Date YYYY-MM-DD or 'today'" },
+          "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
+          "duration": { "type": "number", "description": "Duration in minutes" },
+          "startTime": { "type": "string", "description": "HH:MM format" },
+          "categoryId": { "type": "string" },
+          "isRecurring": { "type": "boolean" },
+          "recurrencePattern": { "type": "string", "enum": ["DAILY", "WEEKLY", "MONTHLY", "WEEKDAYS"] },
+          "subtasks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TaskNode" }
+          }
+        }
+      }
     }
   },
   "paths": {
@@ -33,7 +54,7 @@
         "operationId": "listTasks",
         "parameters": [
           { "name": "date", "in": "query", "schema": { "type": "string" }, "description": "Filter by date (YYYY-MM-DD)" },
-          { "name": "status", "in": "query", "schema": { "type": "string" }, "description": "Filter by status: todo, in_progress, completed, carried_over" },
+          { "name": "status", "in": "query", "schema": { "type": "string" }, "description": "Filter by status: todo, in_progress, completed, cancelled" },
           { "name": "priority", "in": "query", "schema": { "type": "string" }, "description": "Filter by priority: low, medium, high" },
           { "name": "categoryId", "in": "query", "schema": { "type": "string" }, "description": "Filter by category ID" },
           { "name": "query", "in": "query", "schema": { "type": "string" }, "description": "Search term to match title or description" }
@@ -44,7 +65,7 @@
       },
       "post": {
         "summary": "Create a task",
-        "description": "Create a new task or subtask.",
+        "description": "Create a new task or subtask, optionally with a nested hierarchy of subtasks. Each subtask may itself contain subtasks.",
         "operationId": "createTask",
         "requestBody": {
           "required": true,
@@ -56,12 +77,19 @@
                 "properties": {
                   "title": { "type": "string" },
                   "description": { "type": "string" },
-                  "date": { "type": "string", "description": "Date YYYY-MM-DD" },
-                  "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+                  "date": { "type": "string", "description": "Date YYYY-MM-DD or 'today'" },
+                  "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
                   "duration": { "type": "number", "description": "Duration in minutes" },
                   "startTime": { "type": "string", "description": "HH:MM format" },
                   "categoryId": { "type": "string" },
-                  "parentId": { "type": "string", "description": "Parent task ID for subtasks" }
+                  "parentId": { "type": "string", "description": "Parent task ID for subtasks" },
+                  "isRecurring": { "type": "boolean" },
+                  "recurrencePattern": { "type": "string", "enum": ["DAILY", "WEEKLY", "MONTHLY", "WEEKDAYS"] },
+                  "subtasks": {
+                    "type": "array",
+                    "description": "Nested subtasks; each may itself contain subtasks",
+                    "items": { "$ref": "#/components/schemas/TaskNode" }
+                  }
                 }
               }
             }
@@ -98,12 +126,16 @@
                 "properties": {
                   "title": { "type": "string" },
                   "description": { "type": "string" },
-                  "status": { "type": "string", "enum": ["todo", "in_progress", "completed", "carried_over"] },
-                  "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+                  "status": { "type": "string", "enum": ["todo", "in_progress", "completed", "cancelled"] },
+                  "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
                   "duration": { "type": "number" },
                   "startTime": { "type": "string" },
                   "completion": { "type": "number", "description": "Completion percentage 0-100" },
-                  "categoryId": { "type": "string" }
+                  "categoryId": { "type": "string" },
+                  "date": { "type": "string", "description": "Date YYYY-MM-DD or 'today'" },
+                  "isRecurring": { "type": "boolean" },
+                  "recurrencePattern": { "type": "string", "enum": ["DAILY", "WEEKLY", "MONTHLY", "WEEKDAYS"] },
+                  "parentId": { "type": "string", "nullable": true, "description": "New parent task ID, or null to make it a root task" }
                 }
               }
             }
@@ -139,7 +171,7 @@
                 "type": "object",
                 "required": ["status"],
                 "properties": {
-                  "status": { "type": "string", "enum": ["todo", "in_progress", "completed", "carried_over"] }
+                  "status": { "type": "string", "enum": ["todo", "in_progress", "completed", "cancelled"] }
                 }
               }
             }
@@ -251,6 +283,7 @@
     "/categories": {
       "get": {
         "summary": "List task categories",
+        "description": "Fetch all custom task categories. The returned category IDs can be passed as categoryId when creating or updating tasks.",
         "operationId": "listCategories",
         "responses": {
           "200": { "description": "Categories retrieved" }
@@ -268,7 +301,7 @@
                 "required": ["name"],
                 "properties": {
                   "name": { "type": "string" },
-                  "color": { "type": "string" }
+                  "color": { "type": "string", "description": "Hex color code, e.g. #3b82f6" }
                 }
               }
             }
@@ -276,6 +309,43 @@
         },
         "responses": {
           "200": { "description": "Category created" }
+        }
+      }
+    },
+    "/categories/{id}": {
+      "patch": {
+        "summary": "Update category",
+        "operationId": "updateCategory",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "color": { "type": "string", "description": "Hex color code, e.g. #3b82f6" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Category updated" }
+        }
+      },
+      "delete": {
+        "summary": "Delete category",
+        "description": "Delete a task category. Tasks that use this category will have their categoryId cleared.",
+        "operationId": "deleteCategory",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Category deleted" }
         }
       }
     }
