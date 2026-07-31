@@ -5,18 +5,21 @@ import {
   isNotificationSupported,
   subscribeToPush,
   unsubscribeFromPush,
+  getActiveSubscription,
   fetchNotificationPreferences,
   fetchUserSubscriptions,
   toggleNotificationType,
   updateQuietHours,
   updateReminderMinutes,
   removeSubscription,
+  updateSubscriptionActive,
   sendTestNotification,
   formatDeviceName,
   getRelativeTime,
   registerServiceWorker
 } from '../services/notificationService';
 import LoadingSpinner from './LoadingSpinner';
+import ConfirmationModal from './ConfirmationModal';
 import { useToast } from './Toast';
 
 interface NotificationSettingsProps {
@@ -32,7 +35,15 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ userId }) =
   const [isSaving, setIsSaving] = useState(false);
   const [preferences, setPreferences] = useState<NotificationPreference[]>([]);
   const [subscriptions, setSubscriptions] = useState<PushSubscription[]>([]);
+  const [currentEndpoint, setCurrentEndpoint] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'settings' | 'devices'>('settings');
+  const [confirmation, setConfirmation] = useState<{
+    title: string;
+    message: string;
+    confirmText: string;
+    variant: 'danger' | 'info' | 'warning';
+    onConfirm: () => void;
+  } | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -46,13 +57,18 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ userId }) =
       setPermission(checkNotificationPermission());
 
       if (isNotificationSupported()) {
-        const [prefs, subs] = await Promise.all([
+        const [prefs, subs, activeSub] = await Promise.all([
           fetchNotificationPreferences(userId),
-          fetchUserSubscriptions(userId)
+          fetchUserSubscriptions(userId),
+          getActiveSubscription()
         ]);
         setPreferences(prefs);
         setSubscriptions(subs);
-        setIsSubscribed(subs.length > 0);
+        const endpoint = activeSub?.endpoint ?? null;
+        setCurrentEndpoint(endpoint);
+        // "Subscribed" reflects THIS device: it has an active row in the DB.
+        const currentRow = subs.find(s => s.endpoint === endpoint);
+        setIsSubscribed(!!currentRow && currentRow.is_active);
       }
     } catch (error) {
       console.error('Error loading notification data:', error);
@@ -62,16 +78,21 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ userId }) =
     }
   };
 
+  const currentSubscriptionId = (): string | null => {
+    const row = subscriptions.find(s => s.endpoint === currentEndpoint);
+    return row?.id ?? null;
+  };
+
   const handleEnableNotifications = async () => {
     setIsSaving(true);
     try {
       // Register service worker first
       await registerServiceWorker();
       
-      // Subscribe to push
+      // Subscribe to push (upserts this device's row with is_active = true)
       await subscribeToPush(userId);
       
-      showToast('Notifications enabled successfully!', 'success');
+      showToast('Notifications enabled on this device!', 'success');
       await loadData();
     } catch (error: any) {
       console.error('Error enabling notifications:', error);
@@ -81,15 +102,23 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ userId }) =
     }
   };
 
-  const handleDisableNotifications = async () => {
-    if (!confirm('Are you sure you want to disable all notifications?')) {
-      return;
-    }
+  const handleDisableNotifications = () => {
+    setConfirmation({
+      title: 'Turn off notifications?',
+      message: 'Notifications will be turned off on this device. Your other devices will stay on.',
+      confirmText: 'Turn Off',
+      variant: 'warning',
+      onConfirm: performDisableNotifications
+    });
+  };
 
+  const performDisableNotifications = async () => {
+    setConfirmation(null);
     setIsSaving(true);
     try {
-      await unsubscribeFromPush(userId);
-      showToast('Notifications disabled', 'success');
+      // Deactivate this device's row (keeps it listed so it can be re-enabled)
+      await updateSubscriptionActive(currentSubscriptionId() ?? '', false);
+      showToast('Notifications off for this device', 'success');
       await loadData();
     } catch (error) {
       console.error('Error disabling notifications:', error);
@@ -150,14 +179,37 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ userId }) =
     }
   };
 
-  const handleRemoveDevice = async (subscriptionId: string) => {
-    if (!confirm('Remove this device from receiving notifications?')) {
-      return;
-    }
-
+  const handleToggleDevice = async (sub: PushSubscription, isActive: boolean) => {
     try {
-      await removeSubscription(subscriptionId);
-      setSubscriptions(prev => prev.filter(s => s.id !== subscriptionId));
+      await updateSubscriptionActive(sub.id, isActive);
+      setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, is_active: isActive } : s));
+      showToast(`Notifications ${isActive ? 'enabled' : 'disabled'} for ${sub.device_name || 'device'}`, 'success');
+    } catch (error) {
+      console.error('Error toggling device:', error);
+      showToast('Failed to update device', 'error');
+    }
+  };
+
+  const handleRemoveDevice = (sub: PushSubscription) => {
+    setConfirmation({
+      title: 'Remove device?',
+      message: `${sub.device_name || 'This device'} will stop receiving notifications entirely. You can re-add it by enabling notifications on it again.`,
+      confirmText: 'Remove',
+      variant: 'danger',
+      onConfirm: () => performRemoveDevice(sub)
+    });
+  };
+
+  const performRemoveDevice = async (sub: PushSubscription) => {
+    setConfirmation(null);
+    try {
+      if (sub.endpoint === currentEndpoint) {
+        // Removing the current device also unsubscribes this browser
+        await unsubscribeFromPush(userId);
+      } else {
+        await removeSubscription(sub.id);
+      }
+      setSubscriptions(prev => prev.filter(s => s.id !== sub.id));
       showToast('Device removed', 'success');
     } catch (error) {
       console.error('Error removing device:', error);
@@ -242,10 +294,10 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ userId }) =
             <h3 className="font-semibold text-lg">Notification Status</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
               {permission === 'granted' && isSubscribed
-                ? '✅ Notifications are enabled'
+                ? '✅ Notifications are on for this device'
                 : permission === 'denied'
                 ? '❌ Notifications are blocked'
-                : '⚠️ Notifications are not enabled'}
+                : '⚠️ Notifications are off for this device'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -282,7 +334,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ userId }) =
       </div>
 
       {/* Tabs */}
-      {isSubscribed && (
+      {subscriptions.length > 0 && (
         <>
           <div className="border-b border-slate-200 dark:border-slate-700">
             <div className="flex gap-4">
@@ -373,39 +425,81 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ userId }) =
             <div className="space-y-3">
               {subscriptions.length === 0 ? (
                 <div className="text-center py-12 text-slate-600 dark:text-slate-400">
-                  No active devices
+                  No devices registered
                 </div>
               ) : (
-                subscriptions.map(sub => (
-                  <div
-                    key={sub.id}
-                    className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between"
-                  >
-                    <div>
-                      <h4 className="font-medium">
-                        {sub.device_name || formatDeviceName(sub.user_agent || '')}
-                      </h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                        Added {getRelativeTime(sub.created_at)}
-                      </p>
-                      {sub.last_notified_at && (
-                        <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">
-                          Last notification: {getRelativeTime(sub.last_notified_at)}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleRemoveDevice(sub.id)}
-                      className="px-3 py-1.5 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                subscriptions.map(sub => {
+                  const isCurrentDevice = sub.endpoint === currentEndpoint;
+                  return (
+                    <div
+                      key={sub.id}
+                      className={`bg-white dark:bg-slate-800 rounded-lg border p-4 flex items-center justify-between ${
+                        sub.is_active
+                          ? 'border-slate-200 dark:border-slate-700'
+                          : 'border-slate-200 dark:border-slate-700 opacity-60'
+                      }`}
                     >
-                      Remove
-                    </button>
-                  </div>
-                ))
+                      <div>
+                        <h4 className="font-medium flex items-center gap-2">
+                          {sub.device_name || formatDeviceName(sub.user_agent || '')}
+                          {isCurrentDevice && (
+                            <span className="text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full">
+                              This device
+                            </span>
+                          )}
+                        </h4>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                          Added {getRelativeTime(sub.created_at)}
+                          {!sub.is_active && (
+                            <span className="text-slate-500 dark:text-slate-500"> · Off</span>
+                          )}
+                        </p>
+                        {sub.last_notified_at && (
+                          <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">
+                            Last notification: {getRelativeTime(sub.last_notified_at)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleToggleDevice(sub, !sub.is_active)}
+                          aria-label={sub.is_active ? 'Turn off notifications' : 'Turn on notifications'}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                            sub.is_active ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              sub.is_active ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                        <button
+                          onClick={() => handleRemoveDevice(sub)}
+                          className="px-3 py-1.5 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           )}
         </>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmation && (
+        <ConfirmationModal
+          title={confirmation.title}
+          message={confirmation.message}
+          confirmText={confirmation.confirmText}
+          variant={confirmation.variant}
+          onConfirm={confirmation.onConfirm}
+          onCancel={() => setConfirmation(null)}
+        />
       )}
     </div>
   );

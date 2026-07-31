@@ -46,11 +46,29 @@ export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration
       scope: '/'
     });
     
+    // Push the VAPID public key to the service worker so it can handle
+    // pushsubscriptionchange events (the SW cannot read build-time env vars).
+    await sendVapidKeyToSw();
+
     console.log('Service Worker registered:', registration);
     return registration;
   } catch (error) {
     console.error('Service Worker registration failed:', error);
     throw error;
+  }
+};
+
+// Send the VAPID public key to the service worker (used on pushsubscriptionchange).
+export const sendVapidKeyToSw = async (): Promise<void> => {
+  if (!VAPID_PUBLIC_KEY || !('serviceWorker' in navigator)) return;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const controller = registration.active || navigator.serviceWorker.controller;
+    if (controller) {
+      controller.postMessage({ type: 'SET_VAPID_KEY', key: VAPID_PUBLIC_KEY });
+    }
+  } catch (error) {
+    console.error('Error sending VAPID key to service worker:', error);
   }
 };
 
@@ -96,6 +114,11 @@ export const subscribeToPush = async (userId: string): Promise<PushSubscription 
     const registration = await getServiceWorkerRegistration();
     if (!registration) {
       throw new Error('Service worker not registered');
+    }
+
+    // VAPID public key is required to create a push subscription
+    if (!VAPID_PUBLIC_KEY) {
+      throw new Error('VAPID public key is not configured. Add VITE_VAPID_PUBLIC_KEY to your environment.');
     }
 
     // Check for existing subscription
@@ -154,14 +177,15 @@ export const unsubscribeFromPush = async (userId: string): Promise<void> => {
 
     const subscription = await registration.pushManager.getSubscription();
     if (subscription) {
+      const endpoint = subscription.endpoint;
       await subscription.unsubscribe();
-    }
 
-    // Remove from database
-    await supabase
-      .from('push_subscriptions')
-      .delete()
-      .eq('user_id', userId);
+      // Remove only this device's subscription (other devices stay enabled)
+      await supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('endpoint', endpoint);
+    }
 
   } catch (error) {
     console.error('Error unsubscribing from push:', error);
@@ -203,7 +227,6 @@ export const fetchUserSubscriptions = async (userId: string): Promise<PushSubscr
       .from('push_subscriptions')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_active', true)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -214,6 +237,25 @@ export const fetchUserSubscriptions = async (userId: string): Promise<PushSubscr
   } catch (error) {
     console.error('Error fetching user subscriptions:', error);
     return [];
+  }
+};
+
+export const updateSubscriptionActive = async (
+  subscriptionId: string,
+  isActive: boolean
+): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .update({ is_active: isActive, updated_at: new Date().toISOString() })
+      .eq('id', subscriptionId);
+
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error updating subscription:', error);
+    throw error;
   }
 };
 
@@ -321,18 +363,22 @@ export const sendTestNotification = async (): Promise<void> => {
     throw new Error('Service worker not registered');
   }
 
-  await registration.showNotification('ZenTask Test Notification', {
+  // Use a unique tag per test: a fixed tag would silently replace the previous
+  // test notification (still displayed) instead of showing a fresh popup.
+  const options: NotificationOptions & { renotify?: boolean; vibrate?: number[] } = {
     body: 'This is a test notification. If you see this, push notifications are working!',
     icon: '/icon-512.png',
     badge: '/icon-512.png',
-    tag: 'test-notification',
+    tag: `test-notification-${Date.now()}`,
+    renotify: true,
     data: {
       type: 'test',
       url: '/'
     },
     requireInteraction: false,
     vibrate: [200, 100, 200]
-  });
+  };
+  await registration.showNotification('ZenTask Test Notification', options);
 };
 
 // ==================== Utility Functions ====================

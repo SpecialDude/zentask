@@ -208,6 +208,24 @@ const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Handle deep links from push notifications: /?date=YYYY-MM-DD&task=<id>
+  // Opens the date and the task detail modal once the task is loaded.
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const date = params.get('date');
+    const taskId = params.get('task');
+    if (date) setSelectedDate(date);
+    if (taskId) {
+      const task = tasks.find(t => t.id === taskId);
+      if (task) {
+        setViewingTask(task);
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    } else if (date) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [tasks]);
+
   // Loading state
   if (isLoading) return (
     <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">

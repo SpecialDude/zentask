@@ -24,6 +24,11 @@ export default defineConfig(({ mode }) => {
             });
           }
         },
+        '/api/push/resubscribe': {
+          target: env.SUPABASE_URL || 'http://127.0.0.1:54321',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/push\/resubscribe/, '/functions/v1/push-resubscribe'),
+        },
         '/.well-known/oauth-protected-resource': {
           target: env.SUPABASE_URL || 'http://127.0.0.1:54321',
           changeOrigin: true,

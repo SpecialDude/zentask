@@ -1,10 +1,38 @@
 const CACHE_NAME = 'zentask-v1';
+const VAPID_CACHE_KEY = '/vapid-public-key';
 const urlsToCache = [
     '/',
     '/index.html',
     '/manifest.json',
     '/icon-512.png'
 ];
+
+// The page sends the VAPID public key here (the service worker cannot read
+// build-time env vars). We keep it in memory AND in the cache so it survives
+// service worker restarts and is available for pushsubscriptionchange.
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SET_VAPID_KEY' && event.data.key) {
+        self.vapidPublicKey = event.data.key;
+        caches.open(CACHE_NAME).then((cache) => {
+            cache.put(VAPID_CACHE_KEY, new Response(event.data.key));
+        });
+    }
+});
+
+async function getVapidPublicKey() {
+    if (self.vapidPublicKey) return self.vapidPublicKey;
+    try {
+        const cache = await caches.open(CACHE_NAME);
+        const response = await cache.match(VAPID_CACHE_KEY);
+        if (response) {
+            const key = await response.text();
+            if (key) self.vapidPublicKey = key;
+        }
+    } catch (error) {
+        console.error('Error reading cached VAPID key:', error);
+    }
+    return self.vapidPublicKey || null;
+}
 
 // Install event - cache resources
 self.addEventListener('install', (event) => {
@@ -122,117 +150,75 @@ self.addEventListener('notificationclick', (event) => {
     event.notification.close();
 
     const notificationData = event.notification.data || {};
-    const action = event.action;
 
-    // Handle different actions
-    if (action === 'complete') {
-        // Mark task as complete
-        event.waitUntil(
-            handleCompleteTask(notificationData.taskId)
-        );
-    } else if (action === 'snooze') {
-        // Snooze notification
-        event.waitUntil(
-            handleSnoozeTask(notificationData.taskId)
-        );
-    } else {
-        // Default action - open the app
-        const urlToOpen = notificationData.url || '/';
-        event.waitUntil(
-            clients.matchAll({ type: 'window', includeUncontrolled: true })
-                .then((clientList) => {
-                    // Check if app is already open
-                    for (const client of clientList) {
-                        if (client.url.includes(self.location.origin) && 'focus' in client) {
-                            return client.focus().then(() => {
-                                // Navigate to the specific URL
-                                if ('navigate' in client) {
-                                    return client.navigate(urlToOpen);
-                                }
-                            });
-                        }
+    // Default action - open the app (optionally deep-linked to a task)
+    const urlToOpen = notificationData.url || '/';
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true })
+            .then((clientList) => {
+                // Check if app is already open
+                for (const client of clientList) {
+                    if (client.url.includes(self.location.origin) && 'focus' in client) {
+                        return client.focus().then(() => {
+                            // Navigate to the specific URL
+                            if ('navigate' in client) {
+                                return client.navigate(urlToOpen);
+                            }
+                        });
                     }
-                    // If not open, open a new window
-                    if (clients.openWindow) {
-                        return clients.openWindow(urlToOpen);
-                    }
-                })
-        );
-    }
+                }
+                // If not open, open a new window
+                if (clients.openWindow) {
+                    return clients.openWindow(urlToOpen);
+                }
+            })
+    );
 });
 
 // Handle notification close
 self.addEventListener('notificationclose', (event) => {
-    console.log('Notification closed:', event);
-    
     // Track dismissals for analytics
     const notificationData = event.notification.data || {};
-    event.waitUntil(
-        trackNotificationDismissal(notificationData)
-    );
+    console.log('Notification dismissed:', notificationData);
 });
 
-// Helper function to mark task as complete
-async function handleCompleteTask(taskId) {
-    if (!taskId) return;
-    
-    try {
-        // This would call your API to mark the task complete
-        // For now, just log it
-        console.log('Marking task complete:', taskId);
-        
-        // You could use fetch to call your API here
-        // await fetch(`/api/tasks/${taskId}/complete`, { method: 'POST' });
-    } catch (error) {
-        console.error('Error completing task:', error);
-    }
-}
-
-// Helper function to snooze task
-async function handleSnoozeTask(taskId) {
-    if (!taskId) return;
-    
-    try {
-        console.log('Snoozing task:', taskId);
-        // Implementation would reschedule the notification
-    } catch (error) {
-        console.error('Error snoozing task:', error);
-    }
-}
-
-// Helper function to track notification dismissal
-async function trackNotificationDismissal(data) {
-    try {
-        console.log('Notification dismissed:', data);
-        // Could send analytics here
-    } catch (error) {
-        console.error('Error tracking dismissal:', error);
-    }
-}
-
-// Handle push subscription changes
+// Handle push subscription changes (browser rotated the subscription keys)
 self.addEventListener('pushsubscriptionchange', (event) => {
     console.log('Push subscription changed:', event);
-    
+
+    const oldSubscription = event.oldSubscription || null;
+
     event.waitUntil(
-        // Resubscribe with new subscription
-        self.registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(self.VAPID_PUBLIC_KEY)
-        })
-        .then((subscription) => {
-            // Send new subscription to server
-            return fetch('/api/push/subscribe', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(subscription)
-            });
-        })
-        .catch((error) => {
-            console.error('Error resubscribing:', error);
-        })
+        (async () => {
+            const applicationServerKey = await getVapidPublicKey();
+            if (!applicationServerKey) {
+                console.error('pushsubscriptionchange: no VAPID key available, cannot resubscribe');
+                return;
+            }
+
+            try {
+                // Resubscribe with the same application server key
+                const subscription = await self.registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(applicationServerKey)
+                });
+
+                // Persist the new subscription server-side, keyed by the old endpoint
+                const oldEndpoint = oldSubscription ? oldSubscription.endpoint : subscription.endpoint;
+                await fetch('/api/push/resubscribe', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        oldEndpoint,
+                        subscription: subscription.toJSON()
+                    })
+                });
+            } catch (error) {
+                console.error('Error resubscribing:', error);
+            }
+        })()
     );
 });
 

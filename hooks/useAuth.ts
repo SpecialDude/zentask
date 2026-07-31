@@ -13,6 +13,20 @@ export interface AuthUser {
     displayName?: string;
 }
 
+// Persist the user's IANA timezone in auth metadata so backend schedulers
+// (task reminders, quiet hours) can fire at the correct local time.
+async function ensureTimezone(user: any) {
+    if (!user) return;
+    try {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (!timezone) return;
+        if (user.user_metadata?.timezone === timezone) return;
+        await supabase.auth.updateUser({ data: { timezone } });
+    } catch (error) {
+        console.error('Failed to save timezone:', error);
+    }
+}
+
 export function useAuth() {
     const [session, setSession] = useState<any>(null);
     const [userName, setUserName] = useState<string>('');
@@ -38,18 +52,20 @@ export function useAuth() {
             }
             if (session?.user?.id) {
                 checkAdminStatus(session.user.id);
+                ensureTimezone(session.user);
             }
             setIsLoading(false);
         });
 
         // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             setSession(session);
             if (session?.user?.user_metadata?.display_name) {
                 setUserName(session.user.user_metadata.display_name);
             }
             if (session?.user?.id) {
                 checkAdminStatus(session.user.id);
+                ensureTimezone(session.user);
             } else {
                 setIsAdmin(false);
             }

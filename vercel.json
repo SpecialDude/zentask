@@ -9,6 +9,10 @@
             "destination": "https://hvdzprxwvpytxlwzcnic.supabase.co/functions/v1/mcp/:path*"
         },
         {
+            "source": "/api/push/resubscribe",
+            "destination": "https://hvdzprxwvpytxlwzcnic.supabase.co/functions/v1/push-resubscribe"
+        },
+        {
             "source": "/.well-known/oauth-protected-resource",
             "destination": "https://hvdzprxwvpytxlwzcnic.supabase.co/functions/v1/mcp/.well-known/oauth-protected-resource"
         },

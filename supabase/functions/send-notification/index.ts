@@ -1,13 +1,26 @@
 // Send Push Notification Edge Function
-// Sends web push notifications to user devices
+// Sends web push notifications to a user's devices.
+//
+// Security: this function is deliberately callable only by the service role.
+// The `verify_jwt = false` config means the gateway does not gate it, so we
+// validate the caller here (x-supabase-role header or JWT role claim).
+// A regular user (or the anon key) must never be able to push to arbitrary
+// userId values.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import webpush from 'npm:web-push';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY')!;
 const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT')!;
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 interface NotificationPayload {
   userId: string;
@@ -27,19 +40,56 @@ interface PushSubscription {
   auth_key: string;
 }
 
-serve(async (req) => {
-  // CORS headers
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  };
+// Only the service role may send notifications on behalf of a user.
+function isServiceRoleRequest(req: Request): boolean {
+  if (req.headers.get('x-supabase-role') === 'service_role') return true;
 
-  // Handle OPTIONS request
+  const authHeader = req.headers.get('authorization') || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '');
+  if (!token) return false;
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.role === 'service_role';
+  } catch {
+    return false;
+  }
+}
+
+// Derive the 88-char base64url public key from the PKCS8 private key so the
+// deployment never needs a separate server-side public-key secret.
+let cachedPublicKey: string | null = null;
+async function getVapidPublicKey(): Promise<string> {
+  if (cachedPublicKey) return cachedPublicKey;
+  const keyData = urlBase64Decode(VAPID_PRIVATE_KEY);
+  const key = await crypto.subtle.importKey(
+    'pkcs8',
+    keyData,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    true,
+    ['sign']
+  );
+  const spki = await crypto.subtle.exportKey('spki', key);
+  const rawPublicKey = new Uint8Array(spki).slice(-65); // uncompressed EC point
+  cachedPublicKey = urlBase64Encode(rawPublicKey);
+  return cachedPublicKey;
+}
+
+serve(async (req) => {
+  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    // Authorize the caller before doing anything else.
+    if (!isServiceRoleRequest(req)) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden: service role required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Parse request
@@ -56,7 +106,7 @@ serve(async (req) => {
     // Get active subscriptions for user
     const { data: subscriptions, error: subsError } = await supabase
       .from('push_subscriptions')
-      .select('*')
+      .select('id, endpoint, p256dh_key, auth_key')
       .eq('user_id', userId)
       .eq('is_active', true);
 
@@ -70,7 +120,7 @@ serve(async (req) => {
 
     if (!subscriptions || subscriptions.length === 0) {
       return new Response(
-        JSON.stringify({ message: 'No active subscriptions found', sent: 0 }),
+        JSON.stringify({ message: 'No active subscriptions found', sent: 0, failed: 0, total: 0 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -86,12 +136,21 @@ serve(async (req) => {
       actions: actions || []
     };
 
+    // Configure VAPID once per invocation. web-push handles both the JWT
+    // authorization and RFC 8291 payload encryption.
+    const publicKey = await getVapidPublicKey();
+    webpush.setVapidDetails(VAPID_SUBJECT, publicKey, VAPID_PRIVATE_KEY);
+
     // Send to all subscriptions
     const results = await Promise.allSettled(
       subscriptions.map(async (sub: PushSubscription) => {
         try {
-          await sendPushNotification(sub, notificationData);
-          
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh_key, auth: sub.auth_key } },
+            JSON.stringify(notificationData),
+            { TTL: 86400 } // 24 hours
+          );
+
           // Update last_notified_at
           await supabase
             .from('push_subscriptions')
@@ -101,9 +160,9 @@ serve(async (req) => {
           return { subscriptionId: sub.id, success: true };
         } catch (error: any) {
           console.error(`Failed to send to subscription ${sub.id}:`, error);
-          
-          // If subscription is invalid (410 Gone), deactivate it
-          if (error.statusCode === 410) {
+
+          // If subscription is invalid (410 Gone / 404 Not Found), deactivate it
+          if (error.statusCode === 410 || error.statusCode === 404) {
             await supabase
               .from('push_subscriptions')
               .update({ is_active: false })
@@ -119,7 +178,7 @@ serve(async (req) => {
     const failed = results.length - successful;
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         message: 'Notifications sent',
         sent: successful,
         failed,
@@ -137,153 +196,27 @@ serve(async (req) => {
   }
 });
 
-// Send push notification using Web Push protocol
-async function sendPushNotification(
-  subscription: PushSubscription,
-  notification: any
-): Promise<void> {
-  const payload = JSON.stringify(notification);
-
-  // Create JWT for authorization
-  const jwtToken = await createJWT(subscription.endpoint);
-
-  // Encrypt payload
-  const encryptedPayload = await encryptPayload(
-    payload,
-    subscription.p256dh_key,
-    subscription.auth_key
-  );
-
-  // Send push notification
-  const response = await fetch(subscription.endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'Content-Encoding': 'aes128gcm',
-      'Authorization': `vapid t=${jwtToken}, k=${await urlBase64Encode(await getPublicKeyFromPrivate())}`,
-      'TTL': '86400' // 24 hours
-    },
-    body: encryptedPayload
-  });
-
-  if (!response.ok) {
-    const error: any = new Error(`Push notification failed: ${response.statusText}`);
-    error.statusCode = response.status;
-    throw error;
+// URL-safe base64 encode (Uint8Array -> base64url string)
+function urlBase64Encode(data: Uint8Array): string {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < data.length; i += chunk) {
+    binary += String.fromCharCode(...data.subarray(i, i + chunk));
   }
-}
-
-// Create JWT for VAPID
-async function createJWT(endpoint: string): Promise<string> {
-  const url = new URL(endpoint);
-  const audience = `${url.protocol}//${url.host}`;
-
-  const header = {
-    typ: 'JWT',
-    alg: 'ES256'
-  };
-
-  const payload = {
-    aud: audience,
-    exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, // 12 hours
-    sub: VAPID_SUBJECT
-  };
-
-  const encodedHeader = await urlBase64Encode(JSON.stringify(header));
-  const encodedPayload = await urlBase64Encode(JSON.stringify(payload));
-
-  const unsignedToken = `${encodedHeader}.${encodedPayload}`;
-
-  // Sign with private key
-  const signature = await signJWT(unsignedToken);
-  const encodedSignature = await urlBase64Encode(signature);
-
-  return `${unsignedToken}.${encodedSignature}`;
-}
-
-// Sign JWT with ES256
-async function signJWT(data: string): Promise<ArrayBuffer> {
-  const privateKey = await importPrivateKey();
-  const encoder = new TextEncoder();
-  const signature = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
-    privateKey,
-    encoder.encode(data)
-  );
-  return signature;
-}
-
-// Import private key for signing
-async function importPrivateKey(): Promise<CryptoKey> {
-  const keyData = await urlBase64Decode(VAPID_PRIVATE_KEY);
-  return await crypto.subtle.importKey(
-    'pkcs8',
-    keyData,
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign']
-  );
-}
-
-// Get public key from private key
-async function getPublicKeyFromPrivate(): Promise<ArrayBuffer> {
-  // For simplicity, we'll use the public key directly
-  // In production, derive from private key
-  const VAPID_PUBLIC_KEY = Deno.env.get('VITE_VAPID_PUBLIC_KEY')!;
-  return await urlBase64Decode(VAPID_PUBLIC_KEY);
-}
-
-// Encrypt payload for push notification
-async function encryptPayload(
-  payload: string,
-  p256dh: string,
-  auth: string
-): Promise<Uint8Array> {
-  // This is a simplified implementation
-  // In production, use a proper Web Push encryption library
-  // For now, we'll send unencrypted (works with service worker)
-  
-  const encoder = new TextEncoder();
-  return encoder.encode(payload);
-}
-
-// URL-safe base64 encode
-async function urlBase64Encode(data: string | ArrayBuffer): Promise<string> {
-  let buffer: Uint8Array;
-  
-  if (typeof data === 'string') {
-    buffer = new TextEncoder().encode(data);
-  } else {
-    buffer = new Uint8Array(data);
-  }
-
-  // Convert to base64
-  const base64 = btoa(String.fromCharCode(...buffer));
-  
-  // Make URL-safe
-  return base64
+  return btoa(binary)
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=/g, '');
 }
 
-// URL-safe base64 decode
-async function urlBase64Decode(base64String: string): Promise<ArrayBuffer> {
-  // Convert from URL-safe
-  const base64 = base64String
-    .replace(/-/g, '+')
-    .replace(/_/g, '/');
-  
-  // Add padding
+// URL-safe base64 decode (base64url string -> ArrayBuffer)
+function urlBase64Decode(base64String: string): ArrayBuffer {
+  const base64 = base64String.replace(/-/g, '+').replace(/_/g, '/');
   const padding = '='.repeat((4 - base64.length % 4) % 4);
-  const padded = base64 + padding;
-
-  // Decode
-  const binary = atob(padded);
+  const binary = atob(base64 + padding);
   const buffer = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {
     buffer[i] = binary.charCodeAt(i);
   }
-
   return buffer.buffer;
 }
