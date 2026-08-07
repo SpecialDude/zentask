@@ -20,24 +20,28 @@ CREATE INDEX IF NOT EXISTS idx_task_categories_user_id ON public.task_categories
 ALTER TABLE public.task_categories ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can view own categories
+DROP POLICY IF EXISTS "Users can view own categories" ON public.task_categories;
 CREATE POLICY "Users can view own categories" 
   ON public.task_categories 
   FOR SELECT 
   USING (auth.uid() = user_id);
 
 -- Policy: Users can insert own categories
+DROP POLICY IF EXISTS "Users can insert own categories" ON public.task_categories;
 CREATE POLICY "Users can insert own categories" 
   ON public.task_categories 
   FOR INSERT 
   WITH CHECK (auth.uid() = user_id);
 
 -- Policy: Users can update own categories
+DROP POLICY IF EXISTS "Users can update own categories" ON public.task_categories;
 CREATE POLICY "Users can update own categories" 
   ON public.task_categories 
   FOR UPDATE 
   USING (auth.uid() = user_id);
 
 -- Policy: Users can delete own categories
+DROP POLICY IF EXISTS "Users can delete own categories" ON public.task_categories;
 CREATE POLICY "Users can delete own categories" 
   ON public.task_categories 
   FOR DELETE 
@@ -46,7 +50,6 @@ CREATE POLICY "Users can delete own categories"
 -- ==============================================
 -- 4. UPDATE TASKS TABLE
 -- ==============================================
-ALTER TABLE public.tasks 
 -- Drop constraint if it exists to allow re-running this script
 ALTER TABLE public.tasks DROP CONSTRAINT IF EXISTS tasks_categoryId_fkey;
 ALTER TABLE public.tasks ADD CONSTRAINT tasks_categoryId_fkey FOREIGN KEY ("categoryId") REFERENCES public.task_categories(id) ON DELETE SET NULL;

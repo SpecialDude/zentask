@@ -96,7 +96,7 @@ BEGIN
     RETURN v_current_time >= v_quiet_start OR v_current_time < v_quiet_end;
   END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Earliest timestamptz at which a notification of this type may be delivered.
 -- Returns p_now when not in quiet hours, otherwise the end of the current
@@ -161,4 +161,4 @@ BEGIN
 
   RETURN v_next;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

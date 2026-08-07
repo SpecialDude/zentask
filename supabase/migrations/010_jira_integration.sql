@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS jira_connections (
 
 ALTER TABLE jira_connections ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage their own jira connection" ON jira_connections;
 CREATE POLICY "Users can manage their own jira connection"
   ON jira_connections FOR ALL
   USING (auth.uid() = user_id)
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS jira_projects (
 
 ALTER TABLE jira_projects ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage their own jira projects" ON jira_projects;
 CREATE POLICY "Users can manage their own jira projects"
   ON jira_projects FOR ALL
   USING (auth.uid() = user_id)
@@ -58,6 +60,7 @@ CREATE TABLE IF NOT EXISTS jira_task_mappings (
 
 ALTER TABLE jira_task_mappings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage their own jira task mappings" ON jira_task_mappings;
 CREATE POLICY "Users can manage their own jira task mappings"
   ON jira_task_mappings FOR ALL
   USING (auth.uid() = user_id)

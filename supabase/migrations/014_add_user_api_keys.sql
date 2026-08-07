@@ -14,16 +14,19 @@ CREATE TABLE IF NOT EXISTS public.user_api_keys (
 ALTER TABLE public.user_api_keys ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Users can select their own API keys" ON public.user_api_keys;
 CREATE POLICY "Users can select their own API keys"
   ON public.user_api_keys
   FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own API keys" ON public.user_api_keys;
 CREATE POLICY "Users can insert their own API keys"
   ON public.user_api_keys
   FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own API keys" ON public.user_api_keys;
 CREATE POLICY "Users can delete their own API keys"
   ON public.user_api_keys
   FOR DELETE

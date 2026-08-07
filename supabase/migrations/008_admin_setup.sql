@@ -1,5 +1,5 @@
 -- Create admins table
-create table admins (
+create table IF NOT EXISTS admins (
   id uuid references auth.users(id) primary key,
   created_at timestamptz default now()
 );
@@ -8,11 +8,13 @@ create table admins (
 alter table admins enable row level security;
 
 -- Policy: Admins can select themselves
+drop policy if exists "Admins can view their own record" on admins;
 create policy "Admins can view their own record"
 on admins for select
 using (auth.uid() = id);
 
 -- Update RLS for feedback table for Admin Access
+drop policy if exists "Admins can view all feedback" on feedback;
 create policy "Admins can view all feedback"
 on feedback for select
 using (
