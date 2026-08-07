@@ -30,6 +30,7 @@ import Settings from './components/Settings';
 import { QuickListsPage, QuickListEditorModal, QuickListDocumentEditor } from './components/quickLists';
 import { LandingPage } from './components/landing';
 import Auth from './components/Auth';
+import ResetPassword from './components/ResetPassword';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import InstallPrompt from './components/InstallPrompt';
@@ -42,7 +43,7 @@ const App: React.FC = () => {
   const { showToast } = useToast();
 
   // Core hooks
-  const { session, userName, setUserName, isLoading, isAdmin } = useAuth();
+  const { session, userName, setUserName, isLoading, isAdmin, isRecovery } = useAuth();
   const { isDarkMode, setIsDarkMode } = useTheme();
   const { viewType, setViewType } = useViewNavigation();
 
@@ -52,6 +53,7 @@ const App: React.FC = () => {
     if (path === '/privacy') return 'privacy';
     if (path === '/terms') return 'terms';
     if (path === '/login') return 'login';
+    if (path === '/reset-password') return 'reset-password';
     if (path === '/home') return 'home';
     if (path === '/oauth-consent') return 'oauth-consent';
     return 'app'; // Default to app (dashboard)
@@ -200,6 +202,7 @@ const App: React.FC = () => {
       if (path === '/privacy') setCurrentRoute('privacy');
       else if (path === '/terms') setCurrentRoute('terms');
       else if (path === '/login') setCurrentRoute('login');
+      else if (path === '/reset-password') setCurrentRoute('reset-password');
       else if (path === '/home') setCurrentRoute('home');
       else if (path === '/oauth-consent') setCurrentRoute('oauth-consent');
       else setCurrentRoute('app');
@@ -237,6 +240,12 @@ const App: React.FC = () => {
   if (currentRoute === 'privacy') return <PrivacyPolicyView />;
   if (currentRoute === 'terms') return <TermsOfServiceView />;
   if (currentRoute === 'oauth-consent') return <OAuthConsent />;
+
+  // Route: Reset password (via password recovery email link, or recovery
+  // session detected while landing on any other route)
+  if (currentRoute === 'reset-password' || isRecovery) {
+    return <ResetPassword />;
+  }
 
   // Route: Home/Landing page (always accessible)
   if (currentRoute === 'home') {

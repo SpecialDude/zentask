@@ -33,6 +33,7 @@ export function useAuth() {
     const [isLoading, setIsLoading] = useState(true);
 
     const [isAdmin, setIsAdmin] = useState(false);
+    const [isRecovery, setIsRecovery] = useState(false);
 
     useEffect(() => {
         const checkAdminStatus = async (userId: string) => {
@@ -59,6 +60,11 @@ export function useAuth() {
 
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                setIsRecovery(true);
+            } else if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
+                setIsRecovery(false);
+            }
             setSession(session);
             if (session?.user?.user_metadata?.display_name) {
                 setUserName(session.user.user_metadata.display_name);
@@ -89,6 +95,7 @@ export function useAuth() {
         user,
         userName,
         isAdmin,
+        isRecovery,
         setUserName,
         isLoading,
         isAuthenticated: !!session,
