@@ -17,7 +17,6 @@ interface PreferenceWithUser {
   reminder_minutes: number | null;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
-  auth_users: { raw_user_meta_data: { timezone?: string } | null } | null;
 }
 
 serve(async (req) => {
@@ -25,10 +24,15 @@ serve(async (req) => {
     console.log('Task Reminder Scheduler: Starting...');
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get all users with task_reminder enabled (including their timezone).
+    // Build a userId -> timezone map via the Admin API. PostgREST cannot embed
+    // auth.users on this project (the auth schema isn't in the schema cache),
+    // so fetch user metadata separately.
+    const timezoneMap = await buildTimezoneMap(supabase);
+
+    // Get all users with task_reminder enabled.
     const { data: preferences, error: prefError } = await supabase
       .from('notification_preferences')
-      .select('user_id, reminder_minutes, quiet_hours_start, quiet_hours_end, auth_users(raw_user_meta_data)')
+      .select('user_id, reminder_minutes, quiet_hours_start, quiet_hours_end')
       .eq('notification_type', 'task_reminder')
       .eq('enabled', true);
 
@@ -48,7 +52,7 @@ serve(async (req) => {
     for (const pref of preferences as PreferenceWithUser[]) {
       const userId = pref.user_id;
       const reminderMinutes = pref.reminder_minutes || 15;
-      const timezone = pref.auth_users?.raw_user_meta_data?.timezone || 'UTC';
+      const timezone = timezoneMap[userId] || 'UTC';
 
       const now = new Date();
       const localNow = getZonedParts(now, timezone);
@@ -180,6 +184,26 @@ serve(async (req) => {
     );
   }
 });
+
+// Build a userId -> timezone map from auth.users user_metadata via the
+// Admin API (works with the service role key without exposing the auth
+// schema to PostgREST).
+async function buildTimezoneMap(supabase: any): Promise<Record<string, string>> {
+  const map: Record<string, string> = {};
+  let page = 1;
+  let hasNextPage = true;
+  while (hasNextPage) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw error;
+    for (const user of data.users) {
+      const tz = user.user_metadata?.timezone;
+      if (typeof tz === 'string' && tz) map[user.id] = tz;
+    }
+    hasNextPage = data.hasNextPage;
+    page++;
+  }
+  return map;
+}
 
 // Check if current time is within quiet hours
 function isInQuietHours(
