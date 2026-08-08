@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
     });
 
     const sessionId = crypto.randomUUID();
-    const endpoint = new URL(`/api/mcp?sessionId=${sessionId}`, url.origin).toString();
+    const endpoint = new URL(`/api/mcp?sessionId=${sessionId}`, origin).toString();
     const encoder = new TextEncoder();
     
     const transport = {
