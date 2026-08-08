@@ -127,10 +127,32 @@ export const subscribeToPush = async (userId: string): Promise<PushSubscription 
     // If no subscription, create one
     if (!subscription) {
       const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: applicationServerKey
-      });
+
+      try {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey
+        });
+      } catch (subscribeError: any) {
+        // Chrome/Edge surface GCM registration limits as AbortError with this
+        // exact message. A single retry often succeeds; otherwise guide the user.
+        if (subscribeError?.name === 'AbortError') {
+          try {
+            subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: applicationServerKey
+            });
+          } catch (retryError: any) {
+            const message =
+              'The browser push service is rejecting the subscription (this usually means ' +
+              'the browser has too many stored push registrations). In Chrome, open ' +
+              'chrome://gcm-internals or clear site data for zentask.space, then try again.';
+            throw new Error(message);
+          }
+        } else {
+          throw subscribeError;
+        }
+      }
     }
 
     // Save subscription to database

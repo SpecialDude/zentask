@@ -63,27 +63,40 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
-// Fetch event - network first, fallback to cache
+// Fetch event for network requests
 self.addEventListener('fetch', (event) => {
+    const request = event.request;
+    const requestUrl = new URL(request.url);
+
+    // Only handle GET, same-origin requests. The Cache API rejects 'put'
+    // for POST/other methods and for non-http(s) schemes (e.g. chrome-extension).
+    const isCacheableRequest =
+        request.method === 'GET' &&
+        requestUrl.protocol === 'https:' &&
+        requestUrl.origin === self.location.origin;
+
+    if (!isCacheableRequest) {
+        return;
+    }
+
     event.respondWith(
-        fetch(event.request)
+        fetch(request)
             .then((response) => {
-                // Clone the response
+                // Clone the response so we can cache it while returning the original
                 const responseClone = response.clone();
 
-                // Cache successful responses
+                // Cache successful GET responses (best-effort)
                 if (response.status === 200) {
                     caches.open(CACHE_NAME)
-                        .then((cache) => {
-                            cache.put(event.request, responseClone);
-                        });
+                        .then((cache) => cache.put(request, responseClone))
+                        .catch(() => {/* best-effort caching, ignore failures */});
                 }
 
                 return response;
             })
             .catch(() => {
                 // Fallback to cache
-                return caches.match(event.request);
+                return caches.match(request);
             })
     );
 });
