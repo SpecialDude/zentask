@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
+import { reconcilePushSubscription } from '../services/notificationService';
 
 export interface AuthUser {
     id: string;
@@ -24,6 +25,18 @@ async function ensureTimezone(user: any) {
         await supabase.auth.updateUser({ data: { timezone } });
     } catch (error) {
         console.error('Failed to save timezone:', error);
+    }
+}
+
+// After a session is established, ask the browser to repair any push
+// subscription that FCM rotated or invalidated (410 Gone) while the app was
+// closed. Runs after an initial delay so it never blocks first paint, and only
+// ever auto-re-enables rows the server marked 'gone' (never a user 'user' turn-off).
+async function reconcilePushForUser(userId: string) {
+    try {
+        setTimeout(() => reconcilePushSubscription(userId), 3000);
+    } catch (error) {
+        console.error('Failed to schedule push reconcile:', error);
     }
 }
 
@@ -54,6 +67,7 @@ export function useAuth() {
             if (session?.user?.id) {
                 checkAdminStatus(session.user.id);
                 ensureTimezone(session.user);
+                reconcilePushForUser(session.user.id);
             }
             setIsLoading(false);
         });
@@ -72,6 +86,7 @@ export function useAuth() {
             if (session?.user?.id) {
                 checkAdminStatus(session.user.id);
                 ensureTimezone(session.user);
+                reconcilePushForUser(session.user.id);
             } else {
                 setIsAdmin(false);
             }

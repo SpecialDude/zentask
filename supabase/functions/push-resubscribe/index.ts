@@ -47,7 +47,7 @@ serve(async (req) => {
     // Find the existing subscription row by the old endpoint.
     const { data: existing, error: findError } = await supabase
       .from('push_subscriptions')
-      .select('id, user_id')
+      .select('id, user_id, is_active, deactivated_reason')
       .eq('endpoint', oldEndpoint)
       .maybeSingle();
 
@@ -60,19 +60,40 @@ serve(async (req) => {
       );
     }
 
-    // Swap in the new subscription details. Preserve the existing is_active
-    // state so a device the user turned off stays off after a rotation.
+    // A rotation yields a fresh, valid FCM token, so unless the user explicitly
+    // turned this device off ('user'), reactivate the row and clear any 'gone'
+    // reason recorded when the old endpoint started returning 410.
+    const wasUserDisabled = existing.deactivated_reason === 'user';
+    const reactivate = existing.is_active === false && !wasUserDisabled;
+
+    // Swap in the new subscription details. Preserve is_active for a user that
+    // deliberately disabled the device; otherwise reactivate it.
     const { error: updateError } = await supabase
       .from('push_subscriptions')
       .update({
         endpoint: subscription.endpoint,
         p256dh_key: keys.p256dh,
         auth_key: keys.auth,
+        is_active: reactivate ? true : existing.is_active,
+        deactivated_reason: reactivate ? null : existing.deactivated_reason,
         updated_at: new Date().toISOString(),
       })
       .eq('id', existing.id);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      // The new endpoint may already exist on another row (e.g. the load-time
+      // reconcile registered it first). Fall back to deleting this now-stale
+      // row rather than failing the rotation.
+      if (updateError.code === '23505') {
+        const { error: deleteError } = await supabase
+          .from('push_subscriptions')
+          .delete()
+          .eq('id', existing.id);
+        if (deleteError) throw deleteError;
+      } else {
+        throw updateError;
+      }
+    }
 
     return new Response(
       JSON.stringify({ message: 'Subscription resubscribed', resubscribed: true, userId: existing.user_id }),

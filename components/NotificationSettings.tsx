@@ -117,7 +117,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ userId }) =
     setIsSaving(true);
     try {
       // Deactivate this device's row (keeps it listed so it can be re-enabled)
-      await updateSubscriptionActive(currentSubscriptionId() ?? '', false);
+      await updateSubscriptionActive(currentSubscriptionId() ?? '', false, 'user');
       showToast('Notifications off for this device', 'success');
       await loadData();
     } catch (error) {
@@ -181,7 +181,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({ userId }) =
 
   const handleToggleDevice = async (sub: PushSubscription, isActive: boolean) => {
     try {
-      await updateSubscriptionActive(sub.id, isActive);
+      await updateSubscriptionActive(sub.id, isActive, isActive ? undefined : 'user');
       setSubscriptions(prev => prev.map(s => s.id === sub.id ? { ...s, is_active: isActive } : s));
       showToast(`Notifications ${isActive ? 'enabled' : 'disabled'} for ${sub.device_name || 'device'}`, 'success');
     } catch (error) {

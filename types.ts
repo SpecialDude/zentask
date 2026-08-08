@@ -225,6 +225,7 @@ export interface PushSubscription {
   device_name?: string;
   user_agent?: string;
   is_active: boolean;
+  deactivated_reason?: string | null;
   created_at: string;
   updated_at: string;
   last_notified_at?: string;

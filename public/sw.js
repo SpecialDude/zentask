@@ -196,6 +196,12 @@ self.addEventListener('notificationclose', (event) => {
 });
 
 // Handle push subscription changes (browser rotated the subscription keys)
+// Chrome 54+ exposes the previous subscription's options (including the
+// applicationServerKey) via event.oldSubscription.options, so resubscribing no
+// longer depends on the page having sent the VAPID key first. The event fires
+// inconsistently across engines and members are nullable, so this handler is
+// belt-and-braces on top of the page's load-time reconcile (see
+// reconcilePushSubscription in notificationService.ts).
 self.addEventListener('pushsubscriptionchange', (event) => {
     console.log('Push subscription changed:', event);
 
@@ -203,20 +209,31 @@ self.addEventListener('pushsubscriptionchange', (event) => {
 
     event.waitUntil(
         (async () => {
-            const applicationServerKey = await getVapidPublicKey();
+            const oldOptions = oldSubscription && oldSubscription.options &&
+                oldSubscription.options.applicationServerKey;
+
+            let applicationServerKey = oldOptions || null;
             if (!applicationServerKey) {
-                console.error('pushsubscriptionchange: no VAPID key available, cannot resubscribe');
+                const cachedKey = await getVapidPublicKey();
+                if (cachedKey) applicationServerKey = urlBase64ToUint8Array(cachedKey);
+            }
+
+            if (!applicationServerKey) {
+                console.error('pushsubscriptionchange: no applicationServerKey available, cannot resubscribe');
                 return;
             }
 
             try {
-                // Resubscribe with the same application server key
-                const subscription = await self.registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(applicationServerKey)
-                });
+                let subscription = event.newSubscription || null;
+                if (!subscription) {
+                    subscription = await self.registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey
+                    });
+                }
 
-                // Persist the new subscription server-side, keyed by the old endpoint
+                // Persist the new subscription server-side, keyed by the old
+                // endpoint so the existing row is migrated (not duplicated).
                 const oldEndpoint = oldSubscription ? oldSubscription.endpoint : subscription.endpoint;
                 await fetch('/api/push/resubscribe', {
                     method: 'POST',

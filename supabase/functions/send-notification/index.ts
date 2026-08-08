@@ -173,11 +173,13 @@ serve(async (req) => {
         } catch (error: any) {
           console.error(`Failed to send to subscription ${sub.id}:`, error);
 
-          // If subscription is invalid (410 Gone / 404 Not Found), deactivate it
+          // If subscription is invalid (410 Gone / 404 Not Found), deactivate it.
+          // deactivated_reason='gone' lets the client's load-time reconcile know
+          // this row can be safely re-registered on next visit.
           if (error.statusCode === 410 || error.statusCode === 404) {
             await supabase
               .from('push_subscriptions')
-              .update({ is_active: false })
+              .update({ is_active: false, deactivated_reason: 'gone', updated_at: new Date().toISOString() })
               .eq('id', sub.id);
           }
 

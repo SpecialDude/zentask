@@ -241,6 +241,53 @@ export const getActiveSubscription = async (): Promise<WebPushSubscription | nul
   }
 };
 
+// ==================== Subscription Reconciliation ====================
+
+// Detect that a device's push subscription has been rotated or invalidated by
+// the push service (FCM returns 410 Gone) and repair it:
+// 1. The browser holds a NEW endpoint the DB doesn't know -> upsert it active.
+// 2. The DB row for the browser's endpoint was deactivated by a 410 ('gone')
+//    -> re-register the browser subscription (force a fresh FCM token) and
+//    reactivate the row.
+// Never auto-re-enables a row the user deliberately disabled ('user').
+export const reconcilePushSubscription = async (userId: string): Promise<void> => {
+  try {
+    const registration = await getServiceWorkerRegistration();
+    if (!registration) return;
+
+    const activeSub = await registration.pushManager.getSubscription();
+    if (!activeSub) return;
+
+    const subs = await fetchUserSubscriptions(userId);
+    const liveEndpoint = activeSub.endpoint;
+    const liveRow = subs.find(s => s.endpoint === liveEndpoint);
+
+    // Browser endpoint is unknown to the DB -> rotation happened without the
+    // pushsubscriptionchange event reaching us. Register it now.
+    if (!liveRow) {
+      await subscribeToPush(userId);
+      return;
+    }
+
+    // Browser endpoint exists but was deactivated by a push-service 410.
+    // Force a fresh FCM registration (the old token is dead server-side) and
+    // flip the row back on.
+    if (liveRow.is_active === false && liveRow.deactivated_reason !== 'user') {
+      try {
+        await activeSub.unsubscribe();
+      } catch {
+        // Browser token may already be gone; ignore.
+      }
+      await subscribeToPush(userId);
+      return;
+    }
+
+    // Row is active or user-disabled: nothing to repair.
+  } catch (error) {
+    console.error('Error reconciling push subscription:', error);
+  }
+};
+
 // ==================== User Subscriptions ====================
 
 export const fetchUserSubscriptions = async (userId: string): Promise<PushSubscription[]> => {
@@ -264,12 +311,17 @@ export const fetchUserSubscriptions = async (userId: string): Promise<PushSubscr
 
 export const updateSubscriptionActive = async (
   subscriptionId: string,
-  isActive: boolean
+  isActive: boolean,
+  reason?: 'user' | 'gone'
 ): Promise<void> => {
   try {
     const { error } = await supabase
       .from('push_subscriptions')
-      .update({ is_active: isActive, updated_at: new Date().toISOString() })
+      .update({
+        is_active: isActive,
+        deactivated_reason: isActive ? null : (reason ?? null),
+        updated_at: new Date().toISOString()
+      })
       .eq('id', subscriptionId);
 
     if (error) {
