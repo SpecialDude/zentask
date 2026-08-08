@@ -56,12 +56,16 @@ function isServiceRoleRequest(req: Request): boolean {
   }
 }
 
-// Derive the 88-char base64url public key from the PKCS8 private key so the
-// deployment never needs a separate server-side public-key secret.
-let cachedPublicKey: string | null = null;
-async function getVapidPublicKey(): Promise<string> {
-  if (cachedPublicKey) return cachedPublicKey;
-  const keyData = urlBase64Decode(VAPID_PRIVATE_KEY);
+// Derive web-push-ready VAPID keys from the PKCS8 private key.
+// web-push expects the public key as the 65-byte uncompressed EC point and the
+// private key as the raw 32-byte scalar (both URL-safe base64). Exporting the
+// PKCS8 key as JWK yields x/y/d (d is already the base64url 32-byte scalar),
+// so we rebuild the 65-byte point from x/y instead of exporting it via spki
+// (which fails for private keys on some WebCrypto runtimes).
+let cachedVapidKeys: { publicKey: string; privateKey: string } | null = null;
+async function getVapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
+  if (cachedVapidKeys) return cachedVapidKeys;
+  const keyData = urlDecode(VAPID_PRIVATE_KEY);
   const key = await crypto.subtle.importKey(
     'pkcs8',
     keyData,
@@ -69,10 +73,18 @@ async function getVapidPublicKey(): Promise<string> {
     true,
     ['sign']
   );
-  const spki = await crypto.subtle.exportKey('spki', key);
-  const rawPublicKey = new Uint8Array(spki).slice(-65); // uncompressed EC point
-  cachedPublicKey = urlBase64Encode(rawPublicKey);
-  return cachedPublicKey;
+  const jwk = await crypto.subtle.exportKey('jwk', key);
+  const x = urlDecode(jwk.x);
+  const y = urlDecode(jwk.y);
+  const rawPublicKey = new Uint8Array(1 + x.byteLength + y.byteLength);
+  rawPublicKey.set([4], 0); // uncompressed EC point prefix
+  rawPublicKey.set(new Uint8Array(x), 1);
+  rawPublicKey.set(new Uint8Array(y), 1 + x.byteLength);
+  cachedVapidKeys = {
+    publicKey: urlEncode(rawPublicKey),
+    privateKey: jwk.d // 32-byte scalar, base64-url encoded
+  };
+  return cachedVapidKeys;
 }
 
 serve(async (req) => {
@@ -138,8 +150,8 @@ serve(async (req) => {
 
     // Configure VAPID once per invocation. web-push handles both the JWT
     // authorization and RFC 8291 payload encryption.
-    const publicKey = await getVapidPublicKey();
-    webpush.setVapidDetails(VAPID_SUBJECT, publicKey, VAPID_PRIVATE_KEY);
+    const vapidKeys = await getVapidKeys();
+    webpush.setVapidDetails(VAPID_SUBJECT, vapidKeys.publicKey, vapidKeys.privateKey);
 
     // Send to all subscriptions
     const results = await Promise.allSettled(
@@ -197,7 +209,7 @@ serve(async (req) => {
 });
 
 // URL-safe base64 encode (Uint8Array -> base64url string)
-function urlBase64Encode(data: Uint8Array): string {
+function urlEncode(data: Uint8Array): string {
   let binary = '';
   const chunk = 0x8000;
   for (let i = 0; i < data.length; i += chunk) {
@@ -210,7 +222,7 @@ function urlBase64Encode(data: Uint8Array): string {
 }
 
 // URL-safe base64 decode (base64url string -> ArrayBuffer)
-function urlBase64Decode(base64String: string): ArrayBuffer {
+function urlDecode(base64String: string): ArrayBuffer {
   const base64 = base64String.replace(/-/g, '+').replace(/_/g, '/');
   const padding = '='.repeat((4 - base64.length % 4) % 4);
   const binary = atob(base64 + padding);

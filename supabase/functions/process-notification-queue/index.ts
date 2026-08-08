@@ -76,7 +76,8 @@ serve(async (req) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'x-supabase-role': 'service_role'
           },
           body: JSON.stringify({
             userId: notification.user_id,
