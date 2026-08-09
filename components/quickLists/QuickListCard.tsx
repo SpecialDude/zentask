@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { QuickList, ListItem, ListType } from '../../types';
 import { scrollInputIntoView } from '../../utils';
 import { useDebounce } from '../../hooks';
+import DatePicker from '../DatePicker';
 import {
     getQuickListBorderColor,
     useQuickListEditor,
@@ -16,9 +17,10 @@ interface QuickListCardProps {
     onDelete: (id: string) => void;
     onTogglePin: (e: React.MouseEvent) => void;
     onOpenInModal: () => void;
+    onMoveItemToDate?: (listId: string, itemId: string, content: string, date: string) => Promise<boolean>;
 }
 
-const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, onTogglePin, onOpenInModal }) => {
+const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, onTogglePin, onOpenInModal, onMoveItemToDate }) => {
     const {
         title, setTitle,
         items,
@@ -40,6 +42,20 @@ const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, o
     const [newItemText, setNewItemText] = useState('');
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [activeItem, setActiveItem] = useState<ListItem | null>(null);
+    const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+
+    const handleMoveToDate = async (date: string) => {
+        if (!activeItem) return;
+        if (!onMoveItemToDate) return;
+        const success = await onMoveItemToDate(list.id, activeItem.id, activeItem.content, date);
+        if (success) {
+            deleteItem(activeItem.id);
+        }
+        setShowDatePicker(false);
+        setActiveItem(null);
+    };
 
     const cardRef = useRef<HTMLDivElement>(null);
     const isInitialized = useRef(false);
@@ -231,10 +247,22 @@ const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, o
                                 className={`flex-1 bg-transparent border-none outline-none text-sm transition-all ${item.checked && type === 'checkbox' ? 'text-slate-400 line-through' : 'text-slate-600 dark:text-slate-300'}`}
                             />
 
+                            {/* Move to day button */}
+                            <button
+                                onClick={() => { setActiveItem(item); setSelectedDate(new Date().toISOString().split('T')[0]); setShowDatePicker(true); }}
+                                className="opacity-0 group-hover/item:opacity-100 p-1 text-slate-300 hover:text-slate-500 rounded transition-all"
+                                title="Move to day"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M6 2a1 1 0 00-1 1v2H3a1 1 0 000 2h2v8a2 2 0 002 2h6a2 2 0 002-2V7h2a1 1 0 100-2h-2V3a1 1 0 00-1-1H6zM8 7a1 1 0 112 0v1a1 1 0 11-2 0V7zm4 0a1 1 0 112 0v1a1 1 0 11-2 0V7z" />
+                                </svg>
+                            </button>
+
                             {/* Delete item button */}
                             <button
                                 onClick={() => deleteItem(item.id)}
                                 className="opacity-0 group-hover/item:opacity-100 p-1 text-slate-300 hover:text-red-400 rounded transition-all"
+                                title="Delete item"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -242,6 +270,15 @@ const QuickListCard: React.FC<QuickListCardProps> = ({ list, onSave, onDelete, o
                             </button>
                         </div>
                     ))}
+
+                    {showDatePicker && activeItem && (
+                        <DatePicker
+                            selectedDate={selectedDate}
+                            onDateChange={(date) => { setSelectedDate(date); handleMoveToDate(date); }}
+                            isOpen={showDatePicker}
+                            onClose={() => { setShowDatePicker(false); setActiveItem(null); }}
+                        />
+                    )}
 
                     {/* Add Item Input */}
                     <div className="flex items-center gap-2 py-2">
