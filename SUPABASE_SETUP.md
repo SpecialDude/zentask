@@ -66,13 +66,21 @@ SELECT policyname FROM pg_policies WHERE tablename = 'tasks';
    ```ini
    SUPABASE_URL=https://your-project-id.supabase.co
    SUPABASE_ANON_KEY=your_anon_key_here
-   GEMINI_API_KEY=your_gemini_api_key_here
    ```
 
 ### Getting a Gemini API Key (for AI features)
+The Gemini API key is **server-side only** - it is used by the `gemini-proxy` Edge Function and is never bundled into the frontend.
+
 1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
 2. Create an API key
-3. Add it to your `.env` file
+3. Add it to Supabase secrets:
+   ```bash
+   supabase secrets set GEMINI_API_KEY=your_gemini_api_key_here
+   ```
+4. Deploy the function:
+   ```bash
+   supabase functions deploy gemini-proxy
+   ```
 
 ---
 

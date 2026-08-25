@@ -495,7 +495,6 @@ const Dashboard: React.FC<DashboardProps> = ({ tasks, selectedDate, onTaskClick,
             {/* Productivity Insights */}
             <ProductivityInsights 
                 tasks={tasks} 
-                apiKey={process.env.GEMINI_API_KEY || ''} 
             />
 
             {/* Time-Blocking Suggestion */}

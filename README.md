@@ -63,10 +63,11 @@ The AI is instructed to act as a "Productivity Expert." It parses free-form text
 
 1.  Clone the repository.
 2.  Copy `.env.example` to `.env`.
-3.  Fill in your `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `GEMINI_API_KEY`.
+3.  Fill in your `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
 4.  **Set up Supabase Database**: Follow the [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) guide.
-5.  Run `npm install` to install dependencies.
-6.  Run `npm run dev` to start the development server.
+5.  Set your `GEMINI_API_KEY` as a server-side secret: `supabase secrets set GEMINI_API_KEY=...`
+6.  Run `npm install` to install dependencies.
+7.  Run `npm run dev` to start the development server.
 
 ## 📝 Database Schema Recommendation (Supabase)
 

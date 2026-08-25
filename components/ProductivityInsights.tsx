@@ -4,10 +4,9 @@ import { analyzeCarryOverPatterns, generateInsightText, ProductivityInsight } fr
 
 interface ProductivityInsightsProps {
     tasks: Task[];
-    apiKey: string;
 }
 
-const ProductivityInsights: React.FC<ProductivityInsightsProps> = ({ tasks, apiKey }) => {
+const ProductivityInsights: React.FC<ProductivityInsightsProps> = ({ tasks }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const [insightText, setInsightText] = useState<string>('');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -27,7 +26,7 @@ const ProductivityInsights: React.FC<ProductivityInsightsProps> = ({ tasks, apiK
         }
 
         setIsGenerating(true);
-        generateInsightText(insight, apiKey)
+        generateInsightText(insight)
             .then(text => {
                 setInsightText(text);
                 setIsGenerating(false);
@@ -36,7 +35,7 @@ const ProductivityInsights: React.FC<ProductivityInsightsProps> = ({ tasks, apiK
                 setInsightText(insight.summary || 'Unable to generate insight');
                 setIsGenerating(false);
             });
-    }, [insight, apiKey]);
+    }, [insight]);
 
     // Don't show if no data
     if (totalIssues === 0) {

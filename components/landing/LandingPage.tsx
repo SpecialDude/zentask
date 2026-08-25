@@ -37,7 +37,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
             }
         `;
         document.head.appendChild(style);
-        return () => document.head.removeChild(style);
+        return () => { document.head.removeChild(style); };
     }, []);
 
     useEffect(() => {

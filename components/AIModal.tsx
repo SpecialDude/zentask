@@ -1,9 +1,9 @@
 
 import React, { useState, useCallback } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
 import { TaskStatus, TaskPriority, RecurrencePattern, TaskCategory } from '../types';
 import { scrollInputIntoView } from '../utils';
 import VoiceRecorder from './VoiceRecorder';
+import { callGeminiProxy, extractGeminiText } from '../services/geminiService';
 
 interface AIModalProps {
   onClose: () => void;
@@ -32,12 +32,10 @@ const AIModal: React.FC<AIModalProps> = ({ onClose, onPlanGenerated, categories,
     setError(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Convert this plan into a structured task list: "${input}"`,
-        config: {
-          systemInstruction: `You are a productivity expert. Convert the user's messy notes into a structured list of tasks and subtasks for a single day. Return ONLY a JSON array of objects.
+      const response = await callGeminiProxy({
+        contents: [{ role: 'user', parts: [{ text: `Convert this plan into a structured task list: "${input}"` }] }],
+        systemInstruction: {
+          parts: [{ text: `You are a productivity expert. Convert the user's messy notes into a structured list of tasks and subtasks for a single day. Return ONLY a JSON array of objects.
 Each object MUST have:
 - 'title' (string)
 - 'description' (string)
@@ -50,34 +48,36 @@ Each object MUST have:
 - 'subtasks' (optional, array of same structure)
 - 'date' (optional, YYYY-MM-DD format. If a date is mentioned or can be inferred, otherwise omit it. A task and its subtasks must share the same date. Today's date is ${new Date().toISOString().split('T')[0]})
 If you see a sequence, nest them appropriately. If a time is mentioned, include it. Infer priority from urgency cues.
-IMPORTANT: Do NOT include relative date references (like 'tomorrow', 'next week', 'Monday', etc.) in task titles or descriptions. Once you infer the actual date, use the 'date' field instead. Keep titles and descriptions focused on the actual task, not when it occurs - unless the date context is essential for understanding the task.`,
+IMPORTANT: Do NOT include relative date references (like 'tomorrow', 'next week', 'Monday', etc.) in task titles or descriptions. Once you infer the actual date, use the 'date' field instead. Keep titles and descriptions focused on the actual task, not when it occurs - unless the date context is essential for understanding the task.` }]
+        },
+        generationConfig: {
           responseMimeType: "application/json",
           responseSchema: {
-            type: Type.ARRAY,
+            type: 'ARRAY',
             items: {
-              type: Type.OBJECT,
+              type: 'OBJECT',
               properties: {
-                title: { type: Type.STRING },
-                description: { type: Type.STRING },
-                date: { type: Type.STRING },
-                categoryId: { type: Type.STRING },
-                startTime: { type: Type.STRING },
-                duration: { type: Type.NUMBER },
-                priority: { type: Type.STRING },
-                isRecurring: { type: Type.BOOLEAN },
-                recurrencePattern: { type: Type.STRING },
+                title: { type: 'STRING' },
+                description: { type: 'STRING' },
+                date: { type: 'STRING' },
+                categoryId: { type: 'STRING' },
+                startTime: { type: 'STRING' },
+                duration: { type: 'NUMBER' },
+                priority: { type: 'STRING' },
+                isRecurring: { type: 'BOOLEAN' },
+                recurrencePattern: { type: 'STRING' },
                 subtasks: {
-                  type: Type.ARRAY,
+                  type: 'ARRAY',
                   items: {
-                    type: Type.OBJECT,
+                    type: 'OBJECT',
                     properties: {
-                      title: { type: Type.STRING },
-                      description: { type: Type.STRING },
-                      date: { type: Type.STRING },
-                      categoryId: { type: Type.STRING },
-                      startTime: { type: Type.STRING },
-                      duration: { type: Type.NUMBER },
-                      priority: { type: Type.STRING },
+                      title: { type: 'STRING' },
+                      description: { type: 'STRING' },
+                      date: { type: 'STRING' },
+                      categoryId: { type: 'STRING' },
+                      startTime: { type: 'STRING' },
+                      duration: { type: 'NUMBER' },
+                      priority: { type: 'STRING' },
                     },
                     required: ["title", "description"]
                   }
@@ -89,7 +89,7 @@ IMPORTANT: Do NOT include relative date references (like 'tomorrow', 'next week'
         },
       });
 
-      const generatedTasks = JSON.parse(response.text || '[]');
+      const generatedTasks = JSON.parse(extractGeminiText(response) || '[]');
       setPreviewTasks(generatedTasks);
     } catch (err: any) {
       console.error(err);

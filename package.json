@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.34.0",
     "@supabase/supabase-js": "^2.45.4",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -23,5 +22,21 @@
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
-  }
+  },
+  "description": "ZenTask is a professional-grade daily task management application built with React, Tailwind CSS, Supabase, and Google Gemini AI. It is designed to help users master their daily flow through structured hierarchies, intuitive visualizations, and AI-assisted planning.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SpecialDude/zentask.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/SpecialDude/zentask/issues"
+  },
+  "homepage": "https://github.com/SpecialDude/zentask#readme"
 }

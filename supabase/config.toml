@@ -1,2 +1,7 @@
 [functions.mcp]
 verify_jwt = false
+
+# gemini-proxy keeps the platform JWT gate ON: only logged-in users pass,
+# and the function re-verifies the token itself as defense-in-depth.
+[functions.gemini-proxy]
+verify_jwt = true

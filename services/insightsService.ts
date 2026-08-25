@@ -4,6 +4,7 @@
  */
 
 import { Task, TaskStatus } from '../types';
+import { callGeminiProxy, extractGeminiText } from './geminiService';
 
 export interface CarryOverPattern {
     reason: string;
@@ -216,8 +217,7 @@ export const analyzeCarryOverPatterns = (
  * Generates natural language insight using AI
  */
 export const generateInsightText = async (
-    insight: ProductivityInsight,
-    apiKey: string
+    insight: ProductivityInsight
 ): Promise<string> => {
     const totalIssues = insight.totalCarriedOver + insight.totalCancelled + insight.totalAbandoned;
     
@@ -265,25 +265,14 @@ Examples:
 Your insight (1-2 sentences max):`;
 
     try {
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [{ text: prompt }]
-                    }]
-                })
+        const response = await callGeminiProxy({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 200,
             }
-        );
-
-        if (!response.ok) {
-            throw new Error('AI generation failed');
-        }
-
-        const data = await response.json();
-        const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        });
+        const generatedText = extractGeminiText(response).trim();
 
         return generatedText || contextParts.join(', ');
     } catch (error) {
