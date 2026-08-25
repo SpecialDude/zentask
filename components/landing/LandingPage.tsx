@@ -634,6 +634,27 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, isSignedIn, onG
                             </div>
                             <span className="font-bold text-slate-700 dark:text-slate-300">ZenTask</span>
                         </div>
+                        <a
+                            href="https://www.producthunt.com/products/zentask-3?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-zentask-3"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="transition-opacity hover:opacity-80"
+                        >
+                            <img
+                                alt="ZenTask - Master Your Day, Own Your Productivity | Product Hunt"
+                                width={250}
+                                height={54}
+                                className="dark:hidden"
+                                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1231958&theme=light&t=1787665615641"
+                            />
+                            <img
+                                alt="ZenTask - Master Your Day, Own Your Productivity | Product Hunt"
+                                width={250}
+                                height={54}
+                                className="hidden dark:inline-block"
+                                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1231958&theme=dark&t=1787666263670"
+                            />
+                        </a>
                         <p className="text-slate-500 dark:text-slate-400 text-sm">
                             © {new Date().getFullYear()} ZenTask. Built for productivity.
                         </p>
