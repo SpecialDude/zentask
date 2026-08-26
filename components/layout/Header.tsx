@@ -1,6 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { supabase } from '../../supabase';
+import { Task } from '../../types';
+import { getCurrentStreak } from '../../utils/productivityUtils';
 import DatePicker from '../DatePicker';
 
 interface HeaderProps {
@@ -12,9 +14,10 @@ interface HeaderProps {
   onOpenVoice?: () => void;
   userEmail?: string;
   userName?: string;
+  tasks?: Task[];
 }
 
-const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTask, onOpenSidebar, onOpenAI, onOpenVoice, userEmail, userName }) => {
+const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTask, onOpenSidebar, onOpenAI, onOpenVoice, userEmail, userName, tasks }) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const dateObj = new Date(selectedDate);
@@ -42,6 +45,21 @@ const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTas
   };
 
   const displayName = userName || userEmail;
+
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    if (h < 5) return 'Burning the midnight oil';
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+  }, []);
+
+  const firstName = useMemo(() => {
+    const base = displayName ? displayName.split('@')[0].split(/[.\s_-]/)[0] : '';
+    return base ? base.charAt(0).toUpperCase() + base.slice(1) : '';
+  }, [displayName]);
+
+  const streak = useMemo(() => (tasks ? getCurrentStreak(tasks) : 0), [tasks]);
 
   return (
     <>
@@ -86,6 +104,23 @@ const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTas
           {isToday && (
             <span className="inline-flex items-center px-2 py-0.5 text-[10px] sm:text-xs font-bold text-primary bg-primary/10 rounded-lg">
               Today
+            </span>
+          )}
+
+          {/* Time-aware greeting */}
+          {isToday && firstName && (
+            <span className="hidden xl:inline text-sm text-slate-400 dark:text-slate-500 ml-1 truncate max-w-[220px]">
+              {greeting}, {firstName}
+            </span>
+          )}
+
+          {/* Completion streak flame */}
+          {streak >= 2 && (
+            <span
+              title={`${streak}-day completion streak. Keep it going!`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] sm:text-xs font-bold text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400 rounded-lg"
+            >
+              🔥 {streak}
             </span>
           )}
 

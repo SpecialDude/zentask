@@ -107,6 +107,48 @@
         .dark .custom-scrollbar::-webkit-scrollbar-thumb {
             background: #475569;
         }
+
+        /* Checkbox completion pop */
+        @keyframes checkbox-pop {
+            0% { transform: scale(0.3); opacity: 0.4; }
+            55% { transform: scale(1.4); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .checkbox-pop {
+            animation: checkbox-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Progress bar shimmer on hitting 100% */
+        @keyframes progress-shine-sweep {
+            0% { transform: translateX(-150%) skewX(-20deg); }
+            70%, 100% { transform: translateX(350%) skewX(-20deg); }
+        }
+        .progress-shine {
+            position: relative;
+            overflow: hidden;
+        }
+        .progress-shine::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            width: 35%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.85), transparent);
+            transform: translateX(-150%) skewX(-20deg);
+            animation: progress-shine-sweep 1.3s ease-out forwards;
+            pointer-events: none;
+            border-radius: inherit;
+        }
+
+        /* Konami code rainbow mode */
+        @keyframes konami-hue {
+            from { filter: hue-rotate(0deg); }
+            to { filter: hue-rotate(360deg); }
+        }
+        .konami #root {
+            animation: konami-hue 6s linear infinite;
+        }
     </style>
 
     <script>

@@ -147,6 +147,23 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Konami code easter egg: ↑↑↓↓←→←→BA toggles rainbow mode for the session
+  useEffect(() => {
+    const sequence = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+    let progress = 0;
+    const handler = (e: KeyboardEvent) => {
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      progress = key === sequence[progress] ? progress + 1 : (key === sequence[0] ? 1 : 0);
+      if (progress === sequence.length) {
+        progress = 0;
+        document.documentElement.classList.toggle('konami');
+        showToast('🌈 Rainbow mode toggled!', 'info');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showToast]);
+
   // Modal handlers
   const handleOpenModal = (task?: Task, parentId: string | null = null) => {
     setEditingTask(task);
@@ -300,6 +317,7 @@ const App: React.FC = () => {
           onOpenVoice={() => { setAiInitialMode('voice'); setIsAIModalOpen(true); }}
           userEmail={session.user.email}
           userName={userName}
+          tasks={tasks}
         />
 
         <div onScroll={handleContentScroll} className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8">

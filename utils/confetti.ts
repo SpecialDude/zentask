@@ -52,3 +52,58 @@ export const celebrateDayComplete = () => {
         });
     }, 250);
 };
+
+/**
+ * Golden celebration for all-time completion milestones (100 / 250 / 500 / 1000).
+ */
+export const celebrateMilestone = () => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const golds = ['#fde68a', '#fbbf24', '#f59e0b', '#d97706'];
+
+    confetti({
+        particleCount: 140,
+        spread: 100,
+        startVelocity: 50,
+        origin: { y: 0.55 },
+        colors: golds,
+        scalar: 1.15,
+    });
+
+    window.setTimeout(() => {
+        confetti({
+            particleCount: 70,
+            angle: 60,
+            spread: 65,
+            origin: { x: 0, y: 0.75 },
+            colors: golds,
+        });
+        confetti({
+            particleCount: 70,
+            angle: 120,
+            spread: 65,
+            origin: { x: 1, y: 0.75 },
+            colors: golds,
+        });
+    }, 300);
+};
+
+/**
+ * Small puff of confetti at an exact screen position (e.g. a Kanban drop).
+ */
+export const confettiPopAt = (clientX: number, clientY: number) => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    confetti({
+        particleCount: 28,
+        spread: 45,
+        startVelocity: 22,
+        scalar: 0.75,
+        ticks: 120,
+        origin: {
+            x: clientX / window.innerWidth,
+            y: clientY / window.innerHeight,
+        },
+        colors: CELEBRATION_COLORS,
+    });
+};

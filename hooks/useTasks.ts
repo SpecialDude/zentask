@@ -9,7 +9,8 @@ import { Task, TaskStatus, RecurrencePattern } from '../types';
 import { generateId, getTodayStr, getStatusFromProgress } from '../utils';
 import { supabase } from '../supabase';
 import * as taskService from '../services/taskService';
-import { celebrateDayComplete, isDayFullyCleared } from '../utils/confetti';
+import { celebrateDayComplete, celebrateMilestone, isDayFullyCleared } from '../utils/confetti';
+import { checkTaskMilestone, countAllCompleted } from '../utils/productivityUtils';
 
 interface UseTasksOptions {
     userId: string | undefined;
@@ -55,6 +56,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
     // multi-commit cascades from stacking shows; separate clears still celebrate.
     const prevTasksRef = useRef<Task[] | null>(null);
     const lastCelebrationRef = useRef<number>(0);
+    const lastMilestoneShowRef = useRef<number>(0);
 
     useEffect(() => {
         const prev = prevTasksRef.current;
@@ -72,6 +74,20 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
                 transitionedDates.add(t.date);
             }
         }
+
+        // Late-shift hero: completing anything between midnight and 5am
+        if (transitionedDates.size > 0 && new Date().getHours() < 5) {
+            showToast('Late-shift hero! 🦉 Nothing stops you.', 'info');
+        }
+
+        // All-time completion milestones (100 / 250 / 500 / 1000)
+        const milestone = checkTaskMilestone(countAllCompleted(prev), countAllCompleted(tasks));
+        if (milestone !== null && Date.now() - lastMilestoneShowRef.current > 5000) {
+            lastMilestoneShowRef.current = Date.now();
+            celebrateMilestone();
+            showToast(`${milestone} tasks completed all-time! You are unstoppable. 🏆`, 'success', 6000);
+        }
+
         if (transitionedDates.size === 0) return;
 
         // Debounce cascade commits from a single user action

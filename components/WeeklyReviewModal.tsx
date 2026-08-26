@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Task, TaskStatus, TaskPriority } from '../types';
 import { generateWeeklyReview, getWeeklySummary, getWeekLabel } from '../services/weeklyReviewService';
+import { isDayFullyCleared } from '../utils/confetti';
 
 interface WeeklyReviewModalProps {
     isOpen: boolean;
@@ -31,6 +32,26 @@ const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
     );
 
     const weekLabel = getWeekLabel(reviewData.weekStart, reviewData.weekEnd);
+
+    // Flawless Week: all 7 days of the reviewed week fully cleared
+    const isPerfectWeek = useMemo(() => {
+        const byDate = new Map<string, Task[]>();
+        for (const t of tasks) {
+            const list = byDate.get(t.date);
+            if (list) list.push(t);
+            else byDate.set(t.date, [t]);
+        }
+
+        const cursor = new Date(reviewData.weekStart);
+        const end = new Date(reviewData.weekEnd);
+        while (cursor <= end) {
+            if (!isDayFullyCleared(byDate.get(cursor.toISOString().split('T')[0]) || [])) {
+                return false;
+            }
+            cursor.setDate(cursor.getDate() + 1);
+        }
+        return true;
+    }, [tasks, reviewData.weekStart, reviewData.weekEnd]);
 
     if (!isOpen) return null;
 
@@ -152,6 +173,17 @@ const WeeklyReviewModal: React.FC<WeeklyReviewModalProps> = ({
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Flawless Week badge */}
+                    {isPerfectWeek && (
+                        <div className="bg-gradient-to-r from-amber-300 to-yellow-400 text-amber-900 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
+                            <span className="text-3xl">👑</span>
+                            <div>
+                                <p className="font-black text-base">Flawless Week!</p>
+                                <p className="text-sm font-medium">All 7 days fully cleared. Legendary consistency.</p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Summary Stats */}
                     <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-6 text-white">
                         <h3 className="text-lg font-bold mb-3">Week at a Glance</h3>

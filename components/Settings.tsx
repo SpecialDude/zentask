@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Task, TaskCategory } from '../types';
 import { supabase } from '../supabase';
 import NotificationSettings from './NotificationSettings';
+import { getZenRankStats } from '../utils/productivityUtils';
 
 interface SettingsProps {
     tasks: Task[];
@@ -177,6 +178,8 @@ const Settings: React.FC<SettingsProps> = ({
         setDeleteCategoryId(null);
     };
 
+    const zenStats = useMemo(() => getZenRankStats(tasks), [tasks]);
+
     const exportToJSON = () => {
         setExportLoading(true);
         try {
@@ -231,6 +234,33 @@ const Settings: React.FC<SettingsProps> = ({
     return (
         <div className="max-w-2xl mx-auto px-4">
             <h1 className="text-2xl md:text-3xl font-black text-slate-800 dark:text-slate-100 mb-8">Settings</h1>
+
+            {/* Zen Rank */}
+            <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-5 mb-8 text-white shadow-lg">
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-purple-200">Your Zen Rank</p>
+                        <p className="text-xl font-black flex items-center gap-2 mt-1">{zenStats.rank.emoji} {zenStats.rank.title}</p>
+                        <p className="text-xs text-purple-100 mt-1">{zenStats.completedCount} tasks completed · {zenStats.xp} XP</p>
+                    </div>
+                    {zenStats.next ? (
+                        <div className="text-right flex-shrink-0">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-purple-200">Next up</p>
+                            <p className="text-sm font-bold mt-1">{zenStats.next.emoji} {zenStats.next.title}</p>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-purple-100 max-w-[150px] text-right">Highest rank achieved. Teach us your ways. 🙏</p>
+                    )}
+                </div>
+                {zenStats.next && (
+                    <div className="mt-3">
+                        <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                            <div className="h-full bg-white rounded-full transition-all duration-700" style={{ width: `${zenStats.progressPct}%` }}></div>
+                        </div>
+                        <p className="text-[10px] text-purple-200 mt-1.5">{zenStats.xpToNext} XP to go ({Math.ceil(zenStats.xpToNext / 10)} tasks)</p>
+                    </div>
+                )}
+            </div>
 
             {/* Account Section */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 mb-6">

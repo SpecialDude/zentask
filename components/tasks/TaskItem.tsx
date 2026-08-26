@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Task, TaskStatus, TaskPriority, TaskCategory } from '../../types';
 import { formatDuration, calculateAggregateProgress, scrollInputIntoView } from '../../utils';
 import { getStatusColor, getPriorityConfig } from '../../utils/taskUtils';
@@ -36,6 +36,18 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const wasDragged = useRef(false);
+
+  // Completion micro-delight: replay pop/shimmer only on a real transition
+  // (not on initial mount), so loading already-done days stays calm.
+  const prevStatusRef = useRef(task.status);
+  const [completionTick, setCompletionTick] = useState(0);
+  useEffect(() => {
+    if (prevStatusRef.current !== TaskStatus.COMPLETED && task.status === TaskStatus.COMPLETED) {
+      setCompletionTick(t => t + 1);
+    }
+    prevStatusRef.current = task.status;
+  }, [task.status]);
+  const justCompleted = completionTick > 0 && task.status === TaskStatus.COMPLETED;
 
   const tomorrowStr = useMemo(() => {
     const d = new Date(task.date);
@@ -212,7 +224,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               } ${task.carriedOverTo ? 'cursor-not-allowed opacity-50' : ''} ${isBusy ? 'animate-pulse opacity-60 cursor-wait' : ''}`}
           >
             {task.status === TaskStatus.COMPLETED && (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 md:h-4 md:w-4" viewBox="0 0 20 20" fill="currentColor">
+              <svg key={completionTick} xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 md:h-4 md:w-4 ${justCompleted ? 'checkbox-pop' : ''}`} viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             )}
@@ -296,7 +308,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
             )}
 
             <div className="flex items-center gap-2 md:gap-3">
-              <div className="flex-1 h-1 md:h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div className={`flex-1 h-1 md:h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full ${justCompleted ? 'progress-shine' : ''}`}>
                 <div
                   className={`h-full transition-all duration-500 ${getStatusColor(task.status)}`}
                   style={{ width: `${progress}%` }}

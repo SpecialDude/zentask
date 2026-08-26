@@ -51,11 +51,29 @@ const TODAY_MESSAGES: Message[] = [
     },
 ];
 
+const FRIDAY_MESSAGES: Message[] = [
+    {
+        emoji: '🍾',
+        title: 'Week: Survived!',
+        text: 'Friday list: cleared. The weekend is officially unlocked.',
+    },
+    {
+        emoji: '🎉',
+        title: 'Friday Finish!',
+        text: 'You closed out the week like a champion. Go enjoy every minute of it.',
+    },
+];
+
 const PAST_DAY_MESSAGES: Message[] = [
     {
         emoji: '🕊️',
         title: 'Backlog Cleared!',
         text: 'That day is officially wrapped up — nothing follows you into today.',
+    },
+    {
+        emoji: '💪',
+        title: 'Welcome Back!',
+        text: 'You just swept away old leftovers and reclaimed your fresh slate.',
     },
     {
         emoji: '✅',
@@ -65,8 +83,11 @@ const PAST_DAY_MESSAGES: Message[] = [
 ];
 
 const pickMessage = (clearedDate: string): Message => {
-    const pool = clearedDate === getTodayStr() ? TODAY_MESSAGES : PAST_DAY_MESSAGES;
-    return pool[Math.floor(Math.random() * pool.length)];
+    if (clearedDate === getTodayStr()) {
+        const pool = new Date().getDay() === 5 ? FRIDAY_MESSAGES : TODAY_MESSAGES;
+        return pool[Math.floor(Math.random() * pool.length)];
+    }
+    return PAST_DAY_MESSAGES[Math.floor(Math.random() * PAST_DAY_MESSAGES.length)];
 };
 
 export const DayClearedCelebration: React.FC<DayClearedCelebrationProps> = ({ celebration, onDone }) => {

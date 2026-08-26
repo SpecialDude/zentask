@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Task, TaskStatus, TaskCategory } from '../../types';
 import { scrollInputIntoView } from '../../utils';
+import { confettiPopAt } from '../../utils/confetti';
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -65,6 +66,9 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, allTasks, categories, 
     const taskId = e.dataTransfer.getData('taskId');
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
+    if (status === TaskStatus.COMPLETED && task.status !== TaskStatus.COMPLETED) {
+      confettiPopAt(e.clientX, e.clientY);
+    }
     handleDrop(task, status);
     setActiveTask(null);
   };
