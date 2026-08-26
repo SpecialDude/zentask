@@ -27,6 +27,7 @@ import { TaskModal, TaskDetailModal, TaskReviewModal, ExtendRecurringModal } fro
 import AIModal from './components/AIModal';
 import TaskSuggestionsWidget from './components/TaskSuggestionsWidget';
 import Settings from './components/Settings';
+import DayClearedCelebration from './components/DayClearedCelebration';
 import { QuickListsPage, QuickListEditorModal, QuickListDocumentEditor } from './components/quickLists';
 import { LandingPage } from './components/landing';
 import Auth from './components/Auth';
@@ -93,7 +94,9 @@ const App: React.FC = () => {
     endRecurringSeries,
     handleAIPlanGenerated,
     reparentTask,
-    refetchTasks
+    refetchTasks,
+    celebration,
+    clearCelebration
   } = useTasks({
     userId: session?.user?.id,
     showToast,
@@ -436,6 +439,8 @@ const App: React.FC = () => {
             onSave={(reviewText) => { updateTask(reviewingTask.id, { review: reviewText }); setReviewingTask(null); }}
           />
         )}
+
+        <DayClearedCelebration celebration={celebration} onDone={clearCelebration} />
 
         {isListModalOpen && (
           editingList?.type === 'document' || (!editingList && isListModalOpen) ? (

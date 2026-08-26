@@ -20,6 +20,9 @@ interface UseTasksOptions {
 export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions) {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [celebration, setCelebration] = useState<{ id: number; clearedDate: string } | null>(null);
+
+    const clearCelebration = useCallback(() => setCelebration(null), []);
 
     // Fetch tasks
     const refetchTasks = useCallback(async () => {
@@ -90,6 +93,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
 
             lastCelebrationRef.current = Date.now();
             celebrateDayComplete();
+            setCelebration({ id: Date.now(), clearedDate: date });
             break;
         }
     }, [tasks]);
@@ -650,6 +654,8 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
         tasks,
         setTasks,
         isLoading,
+        celebration,
+        clearCelebration,
         addTask,
         updateTask,
         deleteTask,
