@@ -4,11 +4,12 @@
  * Handles all task CRUD operations, recurring tasks, carry-over, and parent sync.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Task, TaskStatus, RecurrencePattern } from '../types';
 import { generateId, getTodayStr, getStatusFromProgress } from '../utils';
 import { supabase } from '../supabase';
 import * as taskService from '../services/taskService';
+import { celebrateDayComplete, isDayFullyCleared } from '../utils/confetti';
 
 interface UseTasksOptions {
     userId: string | undefined;
@@ -42,6 +43,56 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
             setTasks([]);
         }
     }, [userId, refetchTasks]);
+
+    // Day-complete celebration: edge-detects when a date becomes fully cleared.
+    // Watching state (instead of individual mutation paths) covers every
+    // completion route - checkbox, Kanban drag, subtask cascades via syncParents, etc.
+    // Fires only when a task actually transitioned to COMPLETED, so loading,
+    // deleting, or carrying tasks away never triggers it. A ~1.5s debounce keeps
+    // multi-commit cascades from stacking shows; separate clears still celebrate.
+    const prevTasksRef = useRef<Task[] | null>(null);
+    const lastCelebrationRef = useRef<number>(0);
+
+    useEffect(() => {
+        const prev = prevTasksRef.current;
+        prevTasksRef.current = tasks;
+        if (!prev) return;
+
+        const prevById = new Map(prev.map(t => [t.id, t]));
+
+        // Dates where a task genuinely completed in this update
+        const transitionedDates = new Set<string>();
+        for (const t of tasks) {
+            if (t.status !== TaskStatus.COMPLETED) continue;
+            const before = prevById.get(t.id);
+            if (before && before.status !== TaskStatus.COMPLETED) {
+                transitionedDates.add(t.date);
+            }
+        }
+        if (transitionedDates.size === 0) return;
+
+        // Debounce cascade commits from a single user action
+        if (Date.now() - lastCelebrationRef.current < 1500) return;
+
+        const byDate = new Map<string, Task[]>();
+        for (const t of tasks) {
+            const list = byDate.get(t.date);
+            if (list) list.push(t);
+            else byDate.set(t.date, [t]);
+        }
+
+        for (const date of transitionedDates) {
+            const dayTasks = byDate.get(date);
+            if (!dayTasks || !isDayFullyCleared(dayTasks)) continue;
+
+            const prevDayTasks = prev.filter(pt => pt.date === date);
+            if (isDayFullyCleared(prevDayTasks)) continue;
+
+            lastCelebrationRef.current = Date.now();
+            celebrateDayComplete();
+            break;
+        }
+    }, [tasks]);
 
     // Sync parent task completion based on children
     const syncParents = useCallback((taskId: string, currentTasks: Task[]): Task[] => {
