@@ -4,8 +4,14 @@ import { Client } from "npm:@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "npm:@modelcontextprotocol/sdk/inMemory.js";
 import { registerTools } from "./tools.ts";
 
-// In-process MCP server pair, cached per user so tools/list and tools/call
-// ALWAYS reflect the tools registered via registerTools (single source of truth).
+export const SUPPORTED_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
+
+const LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0];
+
+export function isSupportedProtocolVersion(version: string): boolean {
+  return SUPPORTED_PROTOCOL_VERSIONS.includes(version);
+}
+
 const servers = new Map<string, { client: Client; server: McpServer }>();
 
 async function getMcpSession(supabase: SupabaseClient, userId: string) {
@@ -24,14 +30,14 @@ async function getMcpSession(supabase: SupabaseClient, userId: string) {
   return entry;
 }
 
+const jsonHeaders = { "Content-Type": "application/json", "Cache-Control": "no-store" };
+
 export async function handleJsonRpcRequest(
   rpcReq: any,
   supabase: SupabaseClient,
   userId: string
 ): Promise<Response> {
   const { jsonrpc, id, method, params } = rpcReq;
-
-  const jsonHeaders = { "Content-Type": "application/json" };
 
   const successResponse = (result: any) =>
     new Response(
@@ -57,10 +63,23 @@ export async function handleJsonRpcRequest(
     return errorResponse(-32600, "Invalid Request: jsonrpc version must be 2.0");
   }
 
-  // 1. Handshake: initialize
+  if (
+    method === undefined ||
+    method === null ||
+    !("id" in rpcReq) ||
+    (typeof method === "string" && method.startsWith("notifications/"))
+  ) {
+    return new Response(null, { status: 202 });
+  }
+
   if (method === "initialize") {
+    const requested = params?.protocolVersion;
+    const protocolVersion =
+      typeof requested === "string" && isSupportedProtocolVersion(requested)
+        ? requested
+        : LATEST_PROTOCOL_VERSION;
     return successResponse({
-      protocolVersion: "2024-11-05",
+      protocolVersion,
       capabilities: {
         tools: {
           listChanged: true,
@@ -73,17 +92,10 @@ export async function handleJsonRpcRequest(
     });
   }
 
-  // 2. Notification: notifications/initialized
-  if (method === "notifications/initialized") {
-    return new Response(null, { status: 204 });
-  }
-
-  // 3. Ping: ping
   if (method === "ping") {
     return successResponse({});
   }
 
-  // 4. Discovery: tools/list — delegate to the same registered tools as SSE
   if (method === "tools/list") {
     try {
       const session = await getMcpSession(supabase, userId);
@@ -94,7 +106,6 @@ export async function handleJsonRpcRequest(
     }
   }
 
-  // 5. Execution: tools/call — delegate to the same registered tools as SSE
   if (method === "tools/call") {
     const name = params?.name;
     const args = params?.arguments || {};

@@ -1,6 +1,8 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { isDevHost } from "./origin.ts";
 
 const jsonHeaders = { "Content-Type": "application/json" };
+const noStoreHeaders = { ...jsonHeaders, "Cache-Control": "no-store" };
 
 /**
  * Full OAuth 2.0 Authorization Server implementation for MCP.
@@ -10,7 +12,8 @@ const jsonHeaders = { "Content-Type": "application/json" };
 export async function handleOAuthRoute(
   req: Request,
   url: URL,
-  origin: string
+  origin: string,
+  endpointPath: string
 ): Promise<Response | null> {
   const pathname = url.pathname;
 
@@ -20,7 +23,7 @@ export async function handleOAuthRoute(
   if (pathname.includes(".well-known/oauth-protected-resource")) {
     return new Response(
       JSON.stringify({
-        resource: `${origin}/api/mcp`,
+        resource: `${origin}${endpointPath}`,
         authorization_servers: [origin],
         scopes_supported: ["authenticated"],
         bearer_methods_supported: ["header"],
@@ -75,22 +78,52 @@ export async function handleOAuthRoute(
   }
 
   // ──────────────────────────────────────────────
-  // 4a. Authorization Endpoint — GET (redirect to frontend consent page)
+  // 4a. Authorization Endpoint — GET (serve the consent page directly)
   // ──────────────────────────────────────────────
   if (pathname.includes("/oauth/authorize") && req.method === "GET") {
-    // Forward all OAuth params to the frontend consent page
-    const consentUrl = new URL(`${origin}/oauth-consent`);
-    for (const [key, value] of url.searchParams.entries()) {
-      consentUrl.searchParams.set(key, value);
+    const redirectUri = url.searchParams.get("redirect_uri") || "";
+    const responseType = url.searchParams.get("response_type") || "code";
+
+    if (responseType !== "code") {
+      return oauthError("unsupported_response_type", "Only response_type=code is supported");
     }
-    return Response.redirect(consentUrl.toString(), 302);
+    if (!isSafeRedirectUri(redirectUri)) {
+      return oauthError(
+        "invalid_request",
+        "A valid redirect_uri (HTTPS or localhost) is required"
+      );
+    }
+
+    return new Response(
+      buildConsentPage({
+        origin,
+        clientId: url.searchParams.get("client_id") || "",
+        redirectUri,
+        state: url.searchParams.get("state") || "",
+        codeChallenge: url.searchParams.get("code_challenge") || "",
+        codeChallengeMethod: url.searchParams.get("code_challenge_method") || "S256",
+        scope: url.searchParams.get("scope") || "authenticated",
+      }),
+      {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   }
 
   // ──────────────────────────────────────────────
   // 4b. Authorization Endpoint — POST (process login form)
   // ──────────────────────────────────────────────
   if (pathname.includes("/oauth/authorize") && req.method === "POST") {
-    const body = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return oauthError("invalid_request", "Request body must be JSON");
+    }
+
     const {
       email,
       password,
@@ -100,6 +133,19 @@ export async function handleOAuthRoute(
       code_challenge_method,
       client_id,
     } = body;
+
+    if (!isSafeRedirectUri(redirect_uri)) {
+      return oauthError(
+        "invalid_request",
+        "A valid redirect_uri (HTTPS or localhost) is required"
+      );
+    }
+    if (code_challenge_method && code_challenge_method !== "S256") {
+      return oauthError(
+        "invalid_request",
+        "Only the S256 code_challenge_method is supported"
+      );
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
@@ -113,7 +159,7 @@ export async function handleOAuthRoute(
         JSON.stringify({
           error: authError?.message || "Invalid credentials",
         }),
-        { status: 401, headers: jsonHeaders }
+        { status: 401, headers: noStoreHeaders }
       );
     }
 
@@ -123,7 +169,7 @@ export async function handleOAuthRoute(
       at: authData.session.access_token,
       rt: authData.session.refresh_token,
       cc: code_challenge,
-      ccm: code_challenge_method,
+      ccm: code_challenge_method || "S256",
       ru: redirect_uri,
       cid: client_id,
       exp: Math.floor(Date.now() / 1000) + 300, // 5 min
@@ -138,7 +184,7 @@ export async function handleOAuthRoute(
 
     return new Response(
       JSON.stringify({ redirect: redirectUrl.toString() }),
-      { headers: jsonHeaders }
+      { headers: noStoreHeaders }
     );
   }
 
@@ -153,7 +199,11 @@ export async function handleOAuthRoute(
       const text = await req.text();
       new URLSearchParams(text).forEach((v, k) => (params[k] = v));
     } else {
-      params = await req.json();
+      try {
+        params = await req.json();
+      } catch {
+        return oauthError("invalid_request", "Request body must be form-urlencoded or JSON");
+      }
     }
 
     const signingSecret = Deno.env.get("SUPABASE_ANON_KEY") || "secret";
@@ -168,7 +218,17 @@ export async function handleOAuthRoute(
             error_description:
               "Invalid or expired authorization code",
           }),
-          { status: 400, headers: jsonHeaders }
+          { status: 400, headers: noStoreHeaders }
+        );
+      }
+
+      if (payload.ru && params.redirect_uri && payload.ru !== params.redirect_uri) {
+        return new Response(
+          JSON.stringify({
+            error: "invalid_grant",
+            error_description: "redirect_uri does not match the authorization request",
+          }),
+          { status: 400, headers: noStoreHeaders }
         );
       }
 
@@ -186,7 +246,7 @@ export async function handleOAuthRoute(
               error: "invalid_grant",
               error_description: "PKCE verification failed",
             }),
-            { status: 400, headers: jsonHeaders }
+            { status: 400, headers: noStoreHeaders }
           );
         }
       }
@@ -199,7 +259,7 @@ export async function handleOAuthRoute(
           expires_in: 3600,
           scope: "authenticated",
         }),
-        { headers: jsonHeaders }
+        { headers: noStoreHeaders }
       );
     }
 
@@ -219,7 +279,7 @@ export async function handleOAuthRoute(
             error_description:
               error?.message || "Refresh failed",
           }),
-          { status: 400, headers: jsonHeaders }
+          { status: 400, headers: noStoreHeaders }
         );
       }
 
@@ -231,13 +291,13 @@ export async function handleOAuthRoute(
           expires_in: 3600,
           scope: "authenticated",
         }),
-        { headers: jsonHeaders }
+        { headers: noStoreHeaders }
       );
     }
 
     return new Response(
       JSON.stringify({ error: "unsupported_grant_type" }),
-      { status: 400, headers: jsonHeaders }
+      { status: 400, headers: noStoreHeaders }
     );
   }
 
@@ -247,6 +307,39 @@ export async function handleOAuthRoute(
 // ═══════════════════════════════════════════════
 //  Helpers
 // ═══════════════════════════════════════════════
+
+function oauthError(error: string, description: string): Response {
+  return new Response(
+    JSON.stringify({ error, error_description: description }),
+    { status: 400, headers: noStoreHeaders }
+  );
+}
+
+function isSafeRedirectUri(value: unknown): value is string {
+  if (typeof value !== "string" || !value) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  const scheme = parsed.protocol.toLowerCase();
+  if (["javascript:", "data:", "vbscript:", "file:", "blob:"].includes(scheme)) {
+    return false;
+  }
+  if (scheme === "http:" && !isDevHost(parsed.hostname)) {
+    return false;
+  }
+  return true;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (char) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] || char
+  );
+}
 
 function base64url(buf: Uint8Array): string {
   return btoa(String.fromCharCode(...buf))
@@ -356,17 +449,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div class="info"><strong>Claude</strong> wants to connect to your ZenTask account to manage tasks, lists, and categories on your behalf.</div>
   <div class="err" id="err"></div>
   <form id="f">
-    <input type="hidden" name="redirect_uri" value="${opts.redirectUri}">
-    <input type="hidden" name="state" value="${opts.state}">
-    <input type="hidden" name="code_challenge" value="${opts.codeChallenge}">
-    <input type="hidden" name="code_challenge_method" value="${opts.codeChallengeMethod}">
-    <input type="hidden" name="client_id" value="${opts.clientId}">
-    <input type="hidden" name="scope" value="${opts.scope}">
+    <input type="hidden" name="redirect_uri" value="${escapeHtml(opts.redirectUri)}">
+    <input type="hidden" name="state" value="${escapeHtml(opts.state)}">
+    <input type="hidden" name="code_challenge" value="${escapeHtml(opts.codeChallenge)}">
+    <input type="hidden" name="code_challenge_method" value="${escapeHtml(opts.codeChallengeMethod)}">
+    <input type="hidden" name="client_id" value="${escapeHtml(opts.clientId)}">
+    <input type="hidden" name="scope" value="${escapeHtml(opts.scope)}">
     <div class="field"><label>Email</label><input type="email" name="email" required autocomplete="email" placeholder="you@example.com"></div>
     <div class="field"><label>Password</label><input type="password" name="password" required autocomplete="current-password" placeholder="••••••••"></div>
     <button type="submit" class="btn" id="btn">Authorize &amp; Connect</button>
   </form>
-  <div class="redir">Redirect: ${opts.redirectUri.split("?")[0]}</div>
+  <div class="redir">Redirect: ${escapeHtml(opts.redirectUri.split("?")[0])}</div>
 </div>
 <script>
 const f=document.getElementById('f'),e=document.getElementById('err'),b=document.getElementById('btn');

@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://zentask.space/api/v1",
+      "url": "https://www.zentask.space/api/v1",
       "description": "ZenTask Production API Server"
     }
   ],
