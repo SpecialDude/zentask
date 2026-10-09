@@ -78,7 +78,7 @@ export async function handleOAuthRoute(
   }
 
   // ──────────────────────────────────────────────
-  // 4a. Authorization Endpoint — GET (serve the consent page directly)
+  // 4a. Authorization Endpoint — GET (redirect to frontend consent page)
   // ──────────────────────────────────────────────
   if (pathname.includes("/oauth/authorize") && req.method === "GET") {
     const redirectUri = url.searchParams.get("redirect_uri") || "";
@@ -94,23 +94,20 @@ export async function handleOAuthRoute(
       );
     }
 
-    return new Response(
-      buildConsentPage({
-        origin,
-        clientId: url.searchParams.get("client_id") || "",
-        redirectUri,
-        state: url.searchParams.get("state") || "",
-        codeChallenge: url.searchParams.get("code_challenge") || "",
-        codeChallengeMethod: url.searchParams.get("code_challenge_method") || "S256",
-        scope: url.searchParams.get("scope") || "authenticated",
-      }),
-      {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          "Cache-Control": "no-store",
-        },
-      }
-    );
+    // Forward all OAuth params to the frontend consent page (the SPA serves
+    // it with a proper text/html content type; the edge gateway otherwise
+    // serves raw HTML responses as text/plain)
+    const consentUrl = new URL(`${origin}/oauth-consent`);
+    for (const [key, value] of url.searchParams.entries()) {
+      consentUrl.searchParams.set(key, value);
+    }
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: consentUrl.toString(),
+        "Cache-Control": "no-store",
+      },
+    });
   }
 
   // ──────────────────────────────────────────────
@@ -333,14 +330,6 @@ function isSafeRedirectUri(value: unknown): value is string {
   return true;
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(
-    /[&<>"']/g,
-    (char) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] || char
-  );
-}
-
 function base64url(buf: Uint8Array): string {
   return btoa(String.fromCharCode(...buf))
     .replace(/\+/g, "-")
@@ -402,81 +391,4 @@ async function verifyJwt(
   } catch {
     return null;
   }
-}
-
-// ═══════════════════════════════════════════════
-//  Consent / Login Page HTML
-// ═══════════════════════════════════════════════
-
-function buildConsentPage(opts: {
-  origin: string;
-  clientId: string;
-  redirectUri: string;
-  state: string;
-  codeChallenge: string;
-  codeChallengeMethod: string;
-  scope: string;
-}): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ZenTask — Authorize</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh}
-.card{background:#1e293b;border-radius:20px;padding:36px 32px;max-width:400px;width:100%;box-shadow:0 25px 50px -12px rgba(0,0,0,.5)}
-.logo{text-align:center;margin-bottom:20px}
-.logo h1{font-size:22px;font-weight:800;background:linear-gradient(135deg,#818cf8,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.logo p{font-size:13px;color:#94a3b8;margin-top:6px}
-.info{background:#334155;border-radius:10px;padding:14px;margin-bottom:20px;font-size:12px;color:#94a3b8;line-height:1.5}
-.info strong{color:#e2e8f0}
-.field{margin-bottom:14px}
-.field label{display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em}
-.field input{width:100%;padding:11px 14px;background:#0f172a;border:2px solid #334155;border-radius:10px;color:#e2e8f0;font-size:14px;outline:none;transition:border .2s}
-.field input:focus{border-color:#6366f1}
-.btn{width:100%;padding:13px;background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;transition:transform .1s,box-shadow .2s}
-.btn:hover{box-shadow:0 8px 25px -5px rgba(99,102,241,.4)}
-.btn:active{transform:scale(.98)}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.err{background:#7f1d1d;color:#fca5a5;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;display:none}
-.redir{text-align:center;margin-top:14px;font-size:10px;color:#475569}
-</style>
-</head>
-<body>
-<div class="card">
-  <div class="logo"><h1>⚡ ZenTask</h1><p>Authorize access to your account</p></div>
-  <div class="info"><strong>Claude</strong> wants to connect to your ZenTask account to manage tasks, lists, and categories on your behalf.</div>
-  <div class="err" id="err"></div>
-  <form id="f">
-    <input type="hidden" name="redirect_uri" value="${escapeHtml(opts.redirectUri)}">
-    <input type="hidden" name="state" value="${escapeHtml(opts.state)}">
-    <input type="hidden" name="code_challenge" value="${escapeHtml(opts.codeChallenge)}">
-    <input type="hidden" name="code_challenge_method" value="${escapeHtml(opts.codeChallengeMethod)}">
-    <input type="hidden" name="client_id" value="${escapeHtml(opts.clientId)}">
-    <input type="hidden" name="scope" value="${escapeHtml(opts.scope)}">
-    <div class="field"><label>Email</label><input type="email" name="email" required autocomplete="email" placeholder="you@example.com"></div>
-    <div class="field"><label>Password</label><input type="password" name="password" required autocomplete="current-password" placeholder="••••••••"></div>
-    <button type="submit" class="btn" id="btn">Authorize &amp; Connect</button>
-  </form>
-  <div class="redir">Redirect: ${escapeHtml(opts.redirectUri.split("?")[0])}</div>
-</div>
-<script>
-const f=document.getElementById('f'),e=document.getElementById('err'),b=document.getElementById('btn');
-f.addEventListener('submit',async ev=>{
-  ev.preventDefault();e.style.display='none';b.disabled=true;b.textContent='Authorizing…';
-  const d=new FormData(f);
-  try{
-    const r=await fetch(window.location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email:d.get('email'),password:d.get('password'),redirect_uri:d.get('redirect_uri'),
-        state:d.get('state'),code_challenge:d.get('code_challenge'),
-        code_challenge_method:d.get('code_challenge_method'),
-        client_id:d.get('client_id'),scope:d.get('scope')})});
-    const j=await r.json();
-    if(j.redirect){window.location.href=j.redirect}
-    else{throw new Error(j.error||'Authentication failed')}
-  }catch(x){e.textContent=x.message;e.style.display='block';b.disabled=false;b.textContent='Authorize & Connect'}
-});
-</script>
-</body></html>`;
 }
