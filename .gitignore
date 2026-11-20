@@ -17,6 +17,9 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Database dumps contain user data and password hashes
+supabase/backups/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
