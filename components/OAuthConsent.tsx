@@ -15,6 +15,9 @@ const OAuthConsent: React.FC = () => {
   const codeChallengeMethod = params.get('code_challenge_method') || 'S256';
   const clientId = params.get('client_id') || '';
   const scope = params.get('scope') || 'authenticated';
+  // The API may live on a different origin than the SPA (api.zentask.space vs
+  // www.zentask.space); the authorize redirect tells us where to post.
+  const apiOrigin = (params.get('api_origin') || '').replace(/\/$/, '');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +31,7 @@ const OAuthConsent: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await fetch('/oauth/authorize', {
+      const res = await fetch(`${apiOrigin}/oauth/authorize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
