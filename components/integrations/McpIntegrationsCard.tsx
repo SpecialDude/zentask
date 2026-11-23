@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../supabase';
 import { fetchUserApiKeys, createApiKey, revokeApiKey, UserApiKey } from '../../services/apiKeyService';
 
 interface McpIntegrationsCardProps {

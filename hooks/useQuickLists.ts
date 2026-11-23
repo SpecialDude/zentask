@@ -6,7 +6,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { QuickList, ListType } from '../types';
-import { supabase } from '../supabase';
 import * as listService from '../services/listService';
 
 interface UseQuickListsOptions {
@@ -45,10 +44,7 @@ export function useQuickLists({ userId, showToast }: UseQuickListsOptions) {
                 l.id === listData.id ? { ...l, ...updatedList } : l
             ));
 
-            const { error } = await supabase
-                .from('quick_lists')
-                .update({ ...listData, updatedAt: now })
-                .eq('id', listData.id);
+            const { error } = await listService.updateListInDb(listData.id, listData);
 
             if (error) {
                 console.error('Error saving list:', error);
@@ -72,10 +68,7 @@ export function useQuickLists({ userId, showToast }: UseQuickListsOptions) {
                 title: listData.title || 'Untitled List'
             };
 
-            const { data, error } = await supabase
-                .from('quick_lists')
-                .insert([newListPayload])
-                .select();
+            const { data, error } = await listService.insertList(newListPayload);
 
             if (error || !data) {
                 console.error('Error creating list:', error);
@@ -117,10 +110,7 @@ export function useQuickLists({ userId, showToast }: UseQuickListsOptions) {
             updatedAt: now
         };
 
-        const { data, error } = await supabase
-            .from('quick_lists')
-            .insert([newListPayload])
-            .select();
+        const { data, error } = await listService.insertList(newListPayload);
 
         if (error || !data) {
             console.error('Error creating list:', error);

@@ -1,68 +1,53 @@
-import { supabase } from '../supabase';
+import { ApiError, request } from './apiClient';
 import { TaskCategory } from '../types';
 
-export const getCategories = async (userId: string): Promise<TaskCategory[]> => {
-    const { data, error } = await supabase
-        .from('task_categories')
-        .select('*')
-        .eq('user_id', userId)
-        .order('createdAt', { ascending: true });
+function errorMessage(error: unknown): string {
+    if (error instanceof ApiError && error.status === 401) return 'Please sign in again.';
+    return error instanceof Error ? error.message : 'Request failed';
+}
 
-    if (error) {
-        console.error('Error fetching categories:', error);
+// The API scopes rows to the session; `userId` stays for call-site compatibility.
+export const getCategories = async (_userId: string): Promise<TaskCategory[]> => {
+    try {
+        return await request<TaskCategory[]>('/categories');
+    } catch (error) {
+        console.error('Error fetching categories:', errorMessage(error));
         return [];
     }
-
-    return data || [];
 };
 
-export const createCategory = async (category: Omit<TaskCategory, 'id' | 'createdAt'>): Promise<TaskCategory | null> => {
-    const newCategory = {
-        ...category,
-        id: crypto.randomUUID(),
-        createdAt: Date.now()
-    };
-
-    const { data, error } = await supabase
-        .from('task_categories')
-        .insert([newCategory])
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Error creating category:', error);
+export const createCategory = async (
+    category: Pick<TaskCategory, 'name' | 'color'>
+): Promise<TaskCategory | null> => {
+    try {
+        return await request<TaskCategory>('/categories', {
+            method: 'POST',
+            body: { name: category.name, color: category.color },
+        });
+    } catch (error) {
+        console.error('Error creating category:', errorMessage(error));
         return null;
     }
-
-    return data;
 };
 
 export const updateCategory = async (id: string, updates: Partial<TaskCategory>): Promise<TaskCategory | null> => {
-    const { data, error } = await supabase
-        .from('task_categories')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Error updating category:', error);
+    try {
+        return await request<TaskCategory>(`/categories/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            body: updates,
+        });
+    } catch (error) {
+        console.error('Error updating category:', errorMessage(error));
         return null;
     }
-
-    return data;
 };
 
 export const deleteCategory = async (id: string): Promise<{ success: boolean; error?: string }> => {
-    const { error } = await supabase
-        .from('task_categories')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        console.error('Error deleting category:', error);
-        return { success: false, error: error.message };
+    try {
+        await request(`/categories/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        return { success: true };
+    } catch (error) {
+        console.error('Error deleting category:', errorMessage(error));
+        return { success: false, error: errorMessage(error) };
     }
-
-    return { success: true };
 };

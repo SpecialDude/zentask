@@ -3,17 +3,21 @@
  * Handles all Quick List related database operations
  */
 
-import { supabase } from '../supabase';
+import { request, requestAll, toServiceError as toError } from './apiClient';
+import type { ServiceError } from './apiClient';
 import { QuickList, ListType } from '../types';
+
+const listPath = (id: string) => `/lists/${encodeURIComponent(id)}`;
 
 // ==================== Fetch Operations ====================
 
-export const fetchLists = async (userId: string): Promise<{ data: QuickList[] | null; error: any }> => {
-    return supabase
-        .from('quick_lists')
-        .select('*')
-        .eq('user_id', userId)
-        .order('createdAt', { ascending: false });
+// The API scopes rows to the session, so `userId` is accepted but unused.
+export const fetchLists = async (_userId: string): Promise<{ data: QuickList[] | null; error: ServiceError | null }> => {
+    try {
+        return { data: await requestAll<QuickList>('/lists'), error: null };
+    } catch (error) {
+        return { data: null, error: toError(error) };
+    }
 };
 
 // ==================== Create Operations ====================
@@ -47,11 +51,13 @@ export const createListPayload = (
 
 export const insertList = async (
     payload: Omit<QuickList, 'id'>
-): Promise<{ data: QuickList[] | null; error: any }> => {
-    return supabase
-        .from('quick_lists')
-        .insert([payload])
-        .select();
+): Promise<{ data: QuickList[] | null; error: ServiceError | null }> => {
+    try {
+        const created = await request<QuickList>('/lists', { method: 'POST', body: payload });
+        return { data: [created], error: null };
+    } catch (error) {
+        return { data: null, error: toError(error) };
+    }
 };
 
 // ==================== Update Operations ====================
@@ -59,17 +65,27 @@ export const insertList = async (
 export const updateListInDb = async (
     id: string,
     updates: Partial<QuickList>
-): Promise<{ error: any }> => {
-    return supabase
-        .from('quick_lists')
-        .update({ ...updates, updatedAt: Date.now() })
-        .eq('id', id);
+): Promise<{ error: ServiceError | null }> => {
+    try {
+        await request(listPath(id), {
+            method: 'PATCH',
+            body: { ...updates, updatedAt: Date.now() },
+        });
+        return { error: null };
+    } catch (error) {
+        return { error: toError(error) };
+    }
 };
 
 // ==================== Delete Operations ====================
 
-export const deleteListFromDb = async (id: string): Promise<{ error: any }> => {
-    return supabase.from('quick_lists').delete().eq('id', id);
+export const deleteListFromDb = async (id: string): Promise<{ error: ServiceError | null }> => {
+    try {
+        await request(listPath(id), { method: 'DELETE' });
+        return { error: null };
+    } catch (error) {
+        return { error: toError(error) };
+    }
 };
 
 // ==================== Toggle Operations ====================
@@ -77,9 +93,14 @@ export const deleteListFromDb = async (id: string): Promise<{ error: any }> => {
 export const toggleListPinInDb = async (
     id: string,
     currentPinned: boolean
-): Promise<{ error: any }> => {
-    return supabase
-        .from('quick_lists')
-        .update({ pinned: !currentPinned, updatedAt: Date.now() })
-        .eq('id', id);
+): Promise<{ error: ServiceError | null }> => {
+    try {
+        await request(listPath(id), {
+            method: 'PATCH',
+            body: { pinned: !currentPinned, updatedAt: Date.now() },
+        });
+        return { error: null };
+    } catch (error) {
+        return { error: toError(error) };
+    }
 };

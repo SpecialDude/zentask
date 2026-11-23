@@ -60,6 +60,33 @@ const App: React.FC = () => {
     return 'app'; // Default to app (dashboard)
   });
 
+  // OAuth redirects land on /?signed_in=1 or /?auth_error=<reason>.
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const signedIn = params.get('signed_in');
+    const errorCode = params.get('auth_error');
+    if (!signedIn && !errorCode) return;
+
+    params.delete('signed_in');
+    params.delete('auth_error');
+    const query = params.toString();
+    const url = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+
+    if (errorCode) {
+      setAuthError(
+        errorCode === 'google'
+          ? 'Google sign-in could not be completed. Please try again.'
+          : 'That sign-in link is invalid or has expired. Please try again.',
+      );
+      window.history.replaceState({}, '', '/login');
+      setCurrentRoute('login');
+    } else {
+      window.history.replaceState({}, '', url);
+    }
+  }, []);
+
   // UI state
   const [selectedDate, setSelectedDate] = useState<string>(getTodayStr());
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -213,6 +240,7 @@ const App: React.FC = () => {
     const paths = { home: '/home', login: '/login', app: '/', privacy: '/privacy', terms: '/terms' };
     window.history.pushState({}, '', paths[route]);
     setCurrentRoute(route);
+    setAuthError(null);
   }, []);
 
   // Handle browser back/forward
@@ -286,7 +314,7 @@ const App: React.FC = () => {
       navigateTo('app');
       return null;
     }
-    return <Auth onSuccess={() => navigateTo('app')} />;
+    return <Auth onSuccess={() => navigateTo('app')} initialError={authError} />;
   }
 
   // Route: App / Dashboard (requires auth)

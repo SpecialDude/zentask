@@ -7,7 +7,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Task, TaskStatus, RecurrencePattern } from '../types';
 import { generateId, getTodayStr, getStatusFromProgress } from '../utils';
-import { supabase } from '../supabase';
 import * as taskService from '../services/taskService';
 import { celebrateDayComplete, celebrateMilestone, isDayFullyCleared } from '../utils/confetti';
 import { checkTaskMilestone, countAllCompleted } from '../utils/productivityUtils';
@@ -128,7 +127,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
 
         const updatedTasks = currentTasks.map(t => {
             if (t.id === parent.id) {
-                supabase.from('tasks').update({ completion: avgProgress, status: newStatus, updatedAt: Date.now() }).eq('id', parent.id).then();
+                taskService.updateTaskInDb(parent.id, { completion: avgProgress, status: newStatus, updatedAt: Date.now() });
                 return { ...t, completion: avgProgress, status: newStatus, updatedAt: Date.now() };
             }
             return t;
@@ -153,7 +152,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
         const recurringInstances = taskService.generateRecurringInstances(newTask, tasks);
         tasksToInsert.push(...recurringInstances);
 
-        const { error } = await supabase.from('tasks').insert(tasksToInsert);
+        const { error } = await taskService.insertTasks(tasksToInsert);
         if (error) {
             console.error('Error adding task(s):', error);
             showToast('Failed to add task', 'error');
@@ -190,7 +189,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
         }
 
         // 1. Update the main task
-        const { error } = await supabase.from('tasks').update({ ...finalUpdates, updatedAt: Date.now() }).eq('id', id);
+        const { error } = await taskService.updateTaskInDb(id, finalUpdates);
         if (error) {
             console.error('Error updating task:', error);
             return;
@@ -198,10 +197,10 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
 
         // 2. Update descendants if needed
         if (descendantsToUpdate.length > 0) {
-            const { error: descError } = await supabase
-                .from('tasks')
-                .update({ status: TaskStatus.COMPLETED, completion: 100, updatedAt: Date.now() })
-                .in('id', descendantsToUpdate);
+            const { error: descError } = await taskService.updateMultipleTasksInDb(descendantsToUpdate, {
+                status: TaskStatus.COMPLETED,
+                completion: 100,
+            });
 
             if (descError) {
                 console.error('Error updating descendants:', descError);
@@ -224,14 +223,14 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
                 updatedAt: Date.now()
             };
 
-            await supabase.from('tasks').update(recProps).in('id', Array.from(treeIds));
+            await taskService.updateMultipleTasksInDb(Array.from(treeIds), recProps);
 
             if (currentRoot) {
                 const updatedRoot = { ...currentRoot, ...recProps } as Task;
                 addedRecurringInstances = taskService.generateRecurringInstances(updatedRoot, tasks);
 
                 if (addedRecurringInstances.length > 0) {
-                    await supabase.from('tasks').insert(addedRecurringInstances);
+                    await taskService.insertTasks(addedRecurringInstances);
                     showToast(`Hierarchy is now recurring! Added ${addedRecurringInstances.length} task instances.`, 'success');
                 }
             }
@@ -261,11 +260,10 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
             if (moveSubtasks) {
                 const tasksToMove = prev.filter(t => t.parentId === id && t.date === prev.find(p => p.id === id)?.date);
                 tasksToMove.forEach(t => {
-                    supabase.from('tasks').update({
+                    taskService.updateTaskInDb(t.id, {
                         status: finalUpdates.status || t.status,
                         completion: finalUpdates.completion !== undefined ? finalUpdates.completion : t.completion,
-                        updatedAt: Date.now()
-                    }).eq('id', t.id).then();
+                    });
                 });
 
                 updated = updated.map(t => t.parentId === id && t.date === prev.find(p => p.id === id)?.date
@@ -314,7 +312,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
         }
 
         const deleteRecursiveDB = async (t: Task) => {
-            await supabase.from('tasks').delete().eq('id', t.id);
+            await taskService.deleteTaskFromDb(t.id);
             const children = tasks.filter(c => c.parentId === t.id && c.date === t.date);
             for (const child of children) {
                 await deleteRecursiveDB(child);
@@ -335,11 +333,11 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
 
             if (deleteType === 'all') {
                 // Bulk delete: first all instances (children of the parent), then the parent itself
-                const { error: instErr } = await supabase.from('tasks').delete().eq('recurringParentId', baseTaskId);
-                if (instErr) console.error('Error deleting recurring instances:', instErr);
-
-                const { error: parentErr } = await supabase.from('tasks').delete().eq('id', baseTaskId);
-                if (parentErr) console.error('Error deleting recurring parent:', parentErr);
+                const instanceIds = tasks
+                    .filter(t => t.recurringParentId === baseTaskId)
+                    .map(t => t.id);
+                await taskService.deleteTasksFromDb(instanceIds);
+                await taskService.deleteTaskFromDb(baseTaskId);
 
                 setTasks(prev => prev.filter(t => t.id !== baseTaskId && t.recurringParentId !== baseTaskId));
                 showToast('Recurring series deleted', 'success');
@@ -347,26 +345,23 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
                 const targetDate = task.date;
 
                 // 1. Delete instances from DB
-                const { error: instErr } = await supabase.from('tasks')
-                    .delete()
-                    .eq('recurringParentId', baseTaskId)
-                    .gte('date', targetDate);
-                if (instErr) console.error('Error deleting following instances:', instErr);
+                const instanceIds = tasks
+                    .filter(t => t.recurringParentId === baseTaskId && t.date >= targetDate)
+                    .map(t => t.id);
+                await taskService.deleteTasksFromDb(instanceIds);
 
                 // 2. Delete base task if it matches date criteria
-                const { error: parentErr } = await supabase.from('tasks')
-                    .delete()
-                    .eq('id', baseTaskId)
-                    .gte('date', targetDate);
-                if (parentErr) console.error('Error deleting following parent:', parentErr);
+                const baseTask = tasks.find(t => t.id === baseTaskId);
+                if (baseTask && baseTask.date >= targetDate) {
+                    await taskService.deleteTaskFromDb(baseTaskId);
+                }
 
                 // 3. Update base task end date if it survives
-                const baseTask = tasks.find(t => t.id === baseTaskId);
                 if (baseTask && baseTask.date < targetDate) {
                     const prevDate = new Date(targetDate);
                     prevDate.setDate(prevDate.getDate() - 1);
                     const prevDateStr = prevDate.toISOString().split('T')[0];
-                    await supabase.from('tasks').update({ recurrenceEndDate: prevDateStr, updatedAt: Date.now() }).eq('id', baseTaskId);
+                    await taskService.updateTaskInDb(baseTaskId, { recurrenceEndDate: prevDateStr });
                 }
 
                 setTasks(prev => {
@@ -400,100 +395,16 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
         const original = tasks.find(t => t.id === id);
         if (!original || original.completion >= 100) return;
 
-        await supabase.from('tasks').update({ carriedOverTo: newDate, updatedAt: Date.now() }).eq('id', id);
-
-        let newParentId = original.parentId;
-        const extraLocalTasks: Task[] = [];
-
-        if (original.parentId) {
-            const originalParent = tasks.find(p => p.id === original.parentId);
-            const parentOnNewDate = tasks.find(t => t.parentId === null && t.title === originalParent?.title && t.date === newDate);
-
-            if (parentOnNewDate) {
-                newParentId = parentOnNewDate.id;
-            } else if (originalParent) {
-                const clonedParentId = generateId();
-                const clonedParent: Task = {
-                    ...originalParent,
-                    id: clonedParentId,
-                    user_id: userId,
-                    date: newDate,
-                    completion: 0,
-                    status: TaskStatus.TODO,
-                    carriedOverFrom: originalParent.date,
-                    carriedOverTo: undefined,
-                    createdAt: Date.now(),
-                    updatedAt: Date.now()
-                } as Task;
-                await supabase.from('tasks').insert([clonedParent]);
-                extraLocalTasks.push(clonedParent);
-                newParentId = clonedParentId;
-            }
+        const { error } = await taskService.carryOverTaskInDb(id, newDate, reason);
+        if (error) {
+            console.error('Error carrying over task:', error);
+            showToast('Failed to carry over task', 'error');
+            return;
         }
 
-        const newTask: Task = {
-            ...original,
-            id: generateId(),
-            user_id: userId,
-            parentId: newParentId,
-            date: newDate,
-            status: TaskStatus.TODO,
-            completion: 0,
-            carriedOverFrom: original.date,
-            carriedOverTo: undefined,
-            carryOverReason: reason,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-        } as Task;
-        await supabase.from('tasks').insert([newTask]);
-
-        const subtasks = tasks.filter(t => t.parentId === id && t.date === original.date && t.completion < 100 && !t.carriedOverTo);
-        const clonedSubtasks: Task[] = [];
-        for (const sub of subtasks) {
-            const clonedSub = {
-                ...sub,
-                id: generateId(),
-                user_id: userId,
-                parentId: newTask.id,
-                date: newDate,
-                status: TaskStatus.TODO,
-                completion: 0,
-                carriedOverFrom: sub.date,
-                carriedOverTo: undefined,
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-            } as Task;
-            await supabase.from('tasks').insert([clonedSub]);
-            await supabase.from('tasks').update({ carriedOverTo: newDate, updatedAt: Date.now() }).eq('id', sub.id);
-            clonedSubtasks.push(clonedSub);
-        }
-
-        setTasks(prev => {
-            const updatedLocal = prev.map(t => {
-                if (t.id === id) return { ...t, carriedOverTo: newDate, updatedAt: Date.now() };
-                if (subtasks.find(s => s.id === t.id)) return { ...t, carriedOverTo: newDate, updatedAt: Date.now() };
-                return t;
-            });
-            return [...updatedLocal, newTask, ...extraLocalTasks, ...clonedSubtasks];
-        });
-
-        // Auto-complete parent if all siblings done/carried
-        if (original.parentId) {
-            const allSiblings = tasks.filter(t => t.parentId === original.parentId && t.date === original.date && t.id !== id);
-            const allDone = allSiblings.every(s => s.status === TaskStatus.COMPLETED || s.carriedOverTo);
-
-            if (allDone) {
-                const parent = tasks.find(t => t.id === original.parentId);
-                if (parent && parent.status !== TaskStatus.COMPLETED) {
-                    await supabase.from('tasks').update({ status: TaskStatus.COMPLETED, completion: 100, updatedAt: Date.now() }).eq('id', parent.id);
-                    setTasks(prev => prev.map(t => t.id === parent.id ? { ...t, status: TaskStatus.COMPLETED, completion: 100, updatedAt: Date.now() } : t));
-                    showToast(`Parent task "${parent.title}" auto-completed`, 'info');
-                }
-            }
-        }
-
+        await refetchTasks();
         showToast(`Task carried over to ${new Date(newDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, 'success');
-    }, [userId, tasks, showToast]);
+    }, [userId, tasks, showToast, refetchTasks]);
 
     // Extend recurring series
     const extendRecurringSeries = useCallback(async (taskId: string, additionalOccurrences: number) => {
@@ -557,7 +468,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
         }
 
         if (newInstances.length > 0) {
-            const { error } = await supabase.from('tasks').insert(newInstances);
+            const { error } = await taskService.insertTasks(newInstances);
             if (error) {
                 showToast('Failed to extend recurring series', 'error');
                 return;
@@ -575,7 +486,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
         const parentId = task.recurringParentId || task.id;
         const today = getTodayStr();
 
-        const { error } = await supabase.from('tasks').update({ recurrenceEndDate: today, updatedAt: Date.now() }).eq('id', parentId);
+        const { error } = await taskService.updateTaskInDb(parentId, { recurrenceEndDate: today });
         if (error) {
             showToast('Failed to end recurring series', 'error');
             return;
@@ -613,7 +524,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
             tasksToAdd.push(...processTask(t));
         }
 
-        const { error } = await supabase.from('tasks').insert(tasksToAdd);
+        const { error } = await taskService.insertTasks(tasksToAdd);
         if (error) {
             showToast('Failed to save AI-generated tasks', 'error');
             return;
@@ -649,10 +560,7 @@ export function useTasks({ userId, showToast, onTaskCompleted }: UseTasksOptions
             t.id === taskId ? { ...t, parentId: newParentId, updatedAt: Date.now() } : t
         ));
 
-        const { error } = await supabase
-            .from('tasks')
-            .update({ parentId: newParentId, updatedAt: Date.now() })
-            .eq('id', taskId);
+        const { error } = await taskService.updateTaskInDb(taskId, { parentId: newParentId });
 
         if (error) {
             console.error('Error reparenting task:', error);

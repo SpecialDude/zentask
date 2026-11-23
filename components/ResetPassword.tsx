@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../supabase';
+import { loadSession, signOut, updateUser } from '../services/authClient';
 import LoadingSpinner from './LoadingSpinner';
 
 const ResetPassword: React.FC = () => {
@@ -15,10 +15,11 @@ const ResetPassword: React.FC = () => {
   useEffect(() => {
     // A valid recovery link establishes a session before redirecting here.
     // If no session exists, the link is invalid or expired.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setHasSession(!!session);
-      setChecking(false);
-    });
+    loadSession()
+      .then((session) => {
+        setHasSession(!!session);
+      })
+      .finally(() => setChecking(false));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,11 +38,10 @@ const ResetPassword: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
+      await updateUser({ password: newPassword });
       setSuccessMessage('Password updated successfully! Redirecting to login...');
       setTimeout(async () => {
-        await supabase.auth.signOut();
+        await signOut();
         window.location.href = '/login';
       }, 1500);
     } catch (err: any) {

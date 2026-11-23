@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { supabase } from '../../supabase';
+import { signOut } from '../../services/authClient';
 import { Task } from '../../types';
 import { getCurrentStreak } from '../../utils/productivityUtils';
 import DatePicker from '../DatePicker';
@@ -41,7 +41,7 @@ const Header: React.FC<HeaderProps> = ({ selectedDate, setSelectedDate, onAddTas
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut();
   };
 
   const displayName = userName || userEmail;

@@ -1,6 +1,6 @@
 # ZenTask: Hierarchical Productivity Tracker
 
-ZenTask is a professional-grade daily task management application built with React, Tailwind CSS, Supabase, and Google Gemini AI. It is designed to help users master their daily flow through structured hierarchies, intuitive visualizations, and AI-assisted planning.
+ZenTask is a professional-grade daily task management application built with React, Tailwind CSS, a Django/DRF backend, and Google Gemini AI. It is designed to help users master their daily flow through structured hierarchies, intuitive visualizations, and AI-assisted planning.
 
 ## 🌟 Key Features
 
@@ -8,37 +8,45 @@ ZenTask is a professional-grade daily task management application built with Rea
 - **Dual View Interface**:
     - **Daily List**: A clean, nested list view for focused execution.
     - **Kanban Board**: A drag-and-drop board for workflow visualization (Todo, In Progress, Completed, Cancelled).
-- **AI-Assisted Planning**: Describe your day in natural language, and ZenTask uses the `gemini-3-flash-preview` model to automatically generate a structured task hierarchy with times and durations.
+- **AI-Assisted Planning**: Describe your day in natural language, and ZenTask uses Gemini to generate a structured task hierarchy with times and durations.
 - **Smart Carry-Over**: Unfinished tasks can be carried over to future dates with recorded reasons, maintaining a clear audit trail of your productivity.
-- **Persistent Backend**: Integrated with Supabase for secure user authentication and real-time PostgreSQL storage.
+- **Persistent Backend**: Django 5.2 + DRF with cookie-based sessions and PostgreSQL storage (`zentask.api`).
 - **Responsive & Themed**: Full support for Dark and Light modes with a mobile-first responsive design.
 
 ## 🏗️ Technical Architecture
 
 ### Tech Stack
-- **Frontend**: React (ES6 Modules), Tailwind CSS
-- **Backend/Auth**: Supabase (PostgreSQL + GoTrue)
-- **AI Engine**: Google GenAI SDK (@google/genai)
+- **Frontend**: React 19, Vite 6, Tailwind CSS
+- **Backend/Auth**: Django 5.2 + DRF, PostgreSQL (HttpOnly `zt_access` / `zt_refresh` cookies, CSRF header)
+- **AI Engine**: Google GenAI SDK, called through the backend `/ai/generate` proxy
 - **Icons/UI**: Custom SVG implementations for a lightweight, zero-dependency visual experience.
+
+### Repositories
+- `zentask` (this repository) — the SPA. Talks only to the Django API.
+- `zentask.api` (sibling directory) — Django backend, workers, MCP server.
+
+The Supabase edge functions used before the migration are preserved under `supabase/functions` for reference only; nothing in the SPA imports them.
 
 ### Component Breakdown
 
 #### Core Logic
-- **`App.tsx`**: The central orchestrator. It manages authentication state, fetches tasks from Supabase, and handles the global theme. It contains the `syncParents` algorithm which ensures that when a subtask's completion percentage changes, the parent's progress is recalculated as an average of its children.
+- **`App.tsx`**: The central orchestrator. It manages session state, task loading, and the global theme.
+- **`hooks/useTasks.ts`**: Task CRUD, recurring generation, carry-over, and parent progress sync.
+- **`services/`**: Thin API clients (tasks, lists, notifications, Jira, analytics, feedback, API keys, AI) over `services/apiClient.ts`.
 - **`utils.ts`**: Contains pure helper functions for ID generation, date formatting, and progress calculation.
 - **`types.ts`**: Definitive TypeScript interfaces for `Task`, `TaskStatus`, and `ViewType`.
 
 #### Interface Components
-- **`Auth.tsx`**: Handles Login and Sign-up flows via Supabase. Includes error handling and a "Zen" styled minimalist UI.
+- **`Auth.tsx`**: Login and sign-up against `/auth/*` endpoints, plus "Continue with Google" when the API reports it configured (`GET /auth/providers`).
 - **`Header.tsx`**: Provides date navigation (day-by-day or via calendar picker), the AI Assistant trigger, and user profile/logout management.
-- **`Sidebar.tsx`**: Navigation between List and Kanban views, plus the system-wide theme toggle.
-- **`TaskItem.tsx`**: The most complex component. It handles:
-    - Inline progress tracking.
-    - Sub-task expansion/collapse.
-    - Contextual menus for "Cancel" (with reason) and "Carry Over" (with date picker and reason).
-    - Status toggling.
-- **`AIModal.tsx`**: Interfaces with the Gemini API. It sends a structured system instruction to the model to ensure the output is a valid JSON schema that the app can immediately parse and inject into the database.
-- **`KanbanBoard.tsx`**: Implements native HTML5 drag-and-drop. It handles status transitions and triggers prompts when moving tasks to "Cancelled" or "Carried Over" states.
+- **`Sidebar.tsx`**: Navigation between views, plus the system-wide theme toggle.
+- **`TaskItem.tsx`**: Handles inline progress tracking, sub-task expansion/collapse, contextual menus for "Cancel" (with reason) and "Carry Over" (with date picker and reason), and status toggling.
+- **`AIModal.tsx`**: Sends structured instructions through the backend AI proxy and injects the returned JSON plan.
+- **`KanbanBoard.tsx`**: Implements native HTML5 drag-and-drop with status transitions.
+
+### MCP & API keys
+
+The Integrations view exposes the MCP remote URL (`<origin>/api/mcp`) for OAuth connectors and lets users mint/revoke personal API keys for CLI agents. Both are served by `zentask.api`.
 
 ## 🔄 Logic & Workflows
 
@@ -51,43 +59,30 @@ When a user updates the completion percentage of a task:
 5. This process recurses up the tree until it reaches a root task.
 
 ### Task Carry-Over
-Carrying over a task does not just change its date; it creates a lineage:
+`POST /tasks/<id>/carry-over` clones the task, its subtasks and (when needed) its parent on the server, so the new day keeps the hierarchy:
 1. The original task is marked with `carriedOverTo: "YYYY-MM-DD"`.
-2. A new clone of the task is created for the target date with `carriedOverFrom: "Original Date"`.
-3. If the task has sub-tasks that are also incomplete, they are cloned alongside the parent to maintain the hierarchy on the new day.
+2. A clone is created for the target date with `carriedOverFrom` and the optional reason.
 
 ### AI Planning Prompt
-The AI is instructed to act as a "Productivity Expert." It parses free-form text into a JSON array. The system instruction strictly enforces the schema to prevent runtime parsing errors and ensures that even "messy" user notes result in a clean, professional schedule.
+The AI is instructed to act as a "Productivity Expert." It parses free-form text into a JSON array with a strict schema, so even "messy" user notes result in a clean schedule.
 
 ## 🚀 Getting Started
 
-1.  Clone the repository.
-2.  Copy `.env.example` to `.env`.
-3.  Fill in your `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
-4.  **Set up Supabase Database**: Follow the [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) guide.
-5.  Set your `GEMINI_API_KEY` as a server-side secret: `supabase secrets set GEMINI_API_KEY=...`
-6.  Run `npm install` to install dependencies.
-7.  Run `npm run dev` to start the development server.
+1. Clone this repository and the sibling `zentask.api` backend.
+2. Copy `.env.example` to `.env` and set:
+    - `VITE_API_PROXY_TARGET` — backend origin for dev (default `http://127.0.0.1:8000`)
+    - `VITE_VAPID_PUBLIC_KEY` — Web Push public key (must match the backend VAPID pair)
+    - `VITE_API_BASE` — only for production builds; leave empty in dev
+3. Run `npm install`.
+4. Start the backend (`zentask.api`): migrations, then `manage.py runserver 127.0.0.1:8000`.
+5. Run `npm run dev` (Vite on port 5173; API paths are proxied to the backend).
 
-## 📝 Database Schema Recommendation (Supabase)
+Server-side secrets (Gemini key, Jira client credentials, VAPID private key, email SMTP) live in `zentask.api`, never in this repository.
 
-```sql
-create table tasks (
-  id text primary key,
-  user_id uuid references auth.users not null,
-  parentId text references tasks(id) on delete cascade,
-  title text not null,
-  description text,
-  status text not null,
-  completion integer default 0,
-  date text not null,
-  duration integer,
-  startTime text,
-  cancelReason text,
-  carryOverReason text,
-  carriedOverTo text,
-  carriedOverFrom text,
-  createdAt bigint,
-  updatedAt bigint
-);
-```
+## 🚢 Deployment
+
+`vercel.json` rewrites `/api/*`, `/mcp`, `/.well-known/*` and `/oauth/*` to `https://api.zentask.space`. Set `VITE_API_BASE=https://api.zentask.space` for the production build.
+
+## 📝 Database
+
+The schema is owned by `zentask.api` (Django migrations). Task fields keep the SPA's camelCase wire names (`parentId`, `startTime`, `createdAt`, …) so the wire contract did not change during the Supabase → Django migration.

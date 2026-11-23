@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Task, TaskCategory } from '../types';
-import { supabase } from '../supabase';
+import { getUser, updateUser } from '../services/authClient';
 import NotificationSettings from './NotificationSettings';
 import { getZenRankStats } from '../utils/productivityUtils';
 
@@ -49,7 +49,7 @@ const Settings: React.FC<SettingsProps> = ({
 
     const loadUser = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = getUser();
             if (user) {
                 setUserId(user.id);
             }
@@ -61,7 +61,7 @@ const Settings: React.FC<SettingsProps> = ({
     const loadApiKeys = async () => {
         setApiKeysLoading(true);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = getUser();
             if (user) {
                 const { fetchUserApiKeys } = await import('../services/apiKeyService');
                 const keys = await fetchUserApiKeys(user.id);
@@ -78,7 +78,7 @@ const Settings: React.FC<SettingsProps> = ({
         e.preventDefault();
         setKeyMessage(null);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = getUser();
             if (!user) {
                 setKeyMessage({ type: 'error', text: 'User session not found' });
                 return;
@@ -96,7 +96,7 @@ const Settings: React.FC<SettingsProps> = ({
 
     const handleRevokeApiKey = async (keyId: string) => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = getUser();
             if (!user) return;
             const { revokeApiKey } = await import('../services/apiKeyService');
             await revokeApiKey(keyId, user.id);
@@ -119,10 +119,7 @@ const Settings: React.FC<SettingsProps> = ({
 
         setNameLoading(true);
         try {
-            const { error } = await supabase.auth.updateUser({
-                data: { display_name: displayName.trim() }
-            });
-            if (error) throw error;
+            await updateUser({ display_name: displayName.trim() });
             onNameUpdate(displayName.trim());
             setNameMessage({ type: 'success', text: 'Name updated successfully!' });
         } catch (err: any) {
@@ -148,8 +145,7 @@ const Settings: React.FC<SettingsProps> = ({
 
         setPasswordLoading(true);
         try {
-            const { error } = await supabase.auth.updateUser({ password: newPassword });
-            if (error) throw error;
+            await updateUser({ password: newPassword });
             setPasswordMessage({ type: 'success', text: 'Password updated successfully!' });
             setNewPassword('');
             setConfirmPassword('');

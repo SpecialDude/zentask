@@ -3,7 +3,7 @@
  * Handles push notification subscriptions and management
  */
 
-import { supabase } from '../supabase';
+import { request } from './apiClient';
 import { PushSubscription, NotificationPreference, WebPushSubscription, NotificationType } from '../types';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
@@ -102,7 +102,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
-export const subscribeToPush = async (userId: string): Promise<PushSubscription | null> => {
+export const subscribeToPush = async (_userId: string): Promise<PushSubscription | null> => {
   try {
     // Check permission
     const permission = await requestNotificationPermission();
@@ -155,42 +155,29 @@ export const subscribeToPush = async (userId: string): Promise<PushSubscription 
       }
     }
 
-    // Save subscription to database
+    // Save subscription to database (server upserts on endpoint)
     const subscriptionJson = subscription.toJSON();
     const deviceName = getDeviceName();
     const userAgent = navigator.userAgent;
 
-    const { data, error } = await supabase
-      .from('push_subscriptions')
-      .upsert([{
-        user_id: userId,
+    return await request<PushSubscription>('/push/subscriptions', {
+      method: 'POST',
+      body: {
         endpoint: subscription.endpoint,
         p256dh_key: subscriptionJson.keys?.p256dh || '',
         auth_key: subscriptionJson.keys?.auth || '',
         device_name: deviceName,
         user_agent: userAgent,
         is_active: true,
-        updated_at: new Date().toISOString()
-      }], {
-        onConflict: 'endpoint',
-        ignoreDuplicates: false
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error saving subscription:', error);
-      throw error;
-    }
-
-    return data;
+      },
+    });
   } catch (error) {
     console.error('Error subscribing to push:', error);
     throw error;
   }
 };
 
-export const unsubscribeFromPush = async (userId: string): Promise<void> => {
+export const unsubscribeFromPush = async (_userId: string): Promise<void> => {
   try {
     const registration = await getServiceWorkerRegistration();
     if (!registration) {
@@ -203,10 +190,9 @@ export const unsubscribeFromPush = async (userId: string): Promise<void> => {
       await subscription.unsubscribe();
 
       // Remove only this device's subscription (other devices stay enabled)
-      await supabase
-        .from('push_subscriptions')
-        .delete()
-        .eq('endpoint', endpoint);
+      await request(`/push/subscriptions?endpoint=${encodeURIComponent(endpoint)}`, {
+        method: 'DELETE',
+      });
     }
 
   } catch (error) {
@@ -290,19 +276,9 @@ export const reconcilePushSubscription = async (userId: string): Promise<void> =
 
 // ==================== User Subscriptions ====================
 
-export const fetchUserSubscriptions = async (userId: string): Promise<PushSubscription[]> => {
+export const fetchUserSubscriptions = async (_userId: string): Promise<PushSubscription[]> => {
   try {
-    const { data, error } = await supabase
-      .from('push_subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      throw error;
-    }
-
-    return data || [];
+    return await request<PushSubscription[]>('/push/subscriptions');
   } catch (error) {
     console.error('Error fetching user subscriptions:', error);
     return [];
@@ -315,18 +291,13 @@ export const updateSubscriptionActive = async (
   reason?: 'user' | 'gone'
 ): Promise<void> => {
   try {
-    const { error } = await supabase
-      .from('push_subscriptions')
-      .update({
+    await request(`/push/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+      method: 'PATCH',
+      body: {
         is_active: isActive,
         deactivated_reason: isActive ? null : (reason ?? null),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', subscriptionId);
-
-    if (error) {
-      throw error;
-    }
+      },
+    });
   } catch (error) {
     console.error('Error updating subscription:', error);
     throw error;
@@ -335,14 +306,9 @@ export const updateSubscriptionActive = async (
 
 export const removeSubscription = async (subscriptionId: string): Promise<void> => {
   try {
-    const { error } = await supabase
-      .from('push_subscriptions')
-      .delete()
-      .eq('id', subscriptionId);
-
-    if (error) {
-      throw error;
-    }
+    await request(`/push/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+      method: 'DELETE',
+    });
   } catch (error) {
     console.error('Error removing subscription:', error);
     throw error;
@@ -351,19 +317,9 @@ export const removeSubscription = async (subscriptionId: string): Promise<void> 
 
 // ==================== Notification Preferences ====================
 
-export const fetchNotificationPreferences = async (userId: string): Promise<NotificationPreference[]> => {
+export const fetchNotificationPreferences = async (_userId: string): Promise<NotificationPreference[]> => {
   try {
-    const { data, error } = await supabase
-      .from('notification_preferences')
-      .select('*')
-      .eq('user_id', userId)
-      .order('notification_type');
-
-    if (error) {
-      throw error;
-    }
-
-    return data || [];
+    return await request<NotificationPreference[]>('/notification-preferences');
   } catch (error) {
     console.error('Error fetching notification preferences:', error);
     return [];
@@ -371,23 +327,21 @@ export const fetchNotificationPreferences = async (userId: string): Promise<Noti
 };
 
 export const updateNotificationPreference = async (
-  userId: string,
+  _userId: string,
   notificationType: NotificationType,
   updates: Partial<NotificationPreference>
 ): Promise<void> => {
-  try {
-    const { error } = await supabase
-      .from('notification_preferences')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', userId)
-      .eq('notification_type', notificationType);
+  const body: Record<string, unknown> = {};
+  if (updates.enabled !== undefined) body.enabled = updates.enabled;
+  if (updates.reminder_minutes !== undefined) body.reminder_minutes = updates.reminder_minutes;
+  if ('quiet_hours_start' in updates) body.quiet_hours_start = updates.quiet_hours_start ?? null;
+  if ('quiet_hours_end' in updates) body.quiet_hours_end = updates.quiet_hours_end ?? null;
 
-    if (error) {
-      throw error;
-    }
+  try {
+    await request(
+      `/notification-preferences/${encodeURIComponent(notificationType)}`,
+      { method: 'PATCH', body }
+    );
   } catch (error) {
     console.error('Error updating notification preference:', error);
     throw error;

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { JiraConnection, JiraProject, JiraIssue, JiraTaskMapping, Task, TaskStatus } from '../types';
 import * as jiraService from '../services/jiraService';
-import { supabase } from '../supabase';
+import * as taskService from '../services/taskService';
 
 interface UseJiraOptions {
     userId?: string;
@@ -45,13 +45,15 @@ export function useJira({ userId, onTaskUpdate, showToast }: UseJiraOptions) {
         refresh();
     }, [refresh]);
 
-    // Connect: redirect to Atlassian OAuth
-    const connect = useCallback(() => {
+    // Connect: redirect to Atlassian OAuth (state is signed server-side)
+    const connect = useCallback(async () => {
         if (!userId) return;
-        // Pass userId as state parameter for the callback
-        const authUrl = jiraService.getJiraAuthUrl() + `&state=${userId}`;
-        window.location.href = authUrl;
-    }, [userId]);
+        try {
+            window.location.href = await jiraService.getJiraAuthUrl();
+        } catch (err: any) {
+            showToast?.(err.message || 'Failed to start Jira authorization', 'error');
+        }
+    }, [userId, showToast]);
 
     // Disconnect
     const disconnect = useCallback(async () => {
@@ -128,7 +130,7 @@ export function useJira({ userId, onTaskUpdate, showToast }: UseJiraOptions) {
             const now = Date.now();
 
             // Create the ZenTask task
-            const { error: taskError } = await supabase.from('tasks').insert({
+            const { error: taskError } = await taskService.insertTasks([{
                 id: taskId,
                 user_id: userId,
                 parentId,
@@ -142,7 +144,7 @@ export function useJira({ userId, onTaskUpdate, showToast }: UseJiraOptions) {
                 date,
                 createdAt: now,
                 updatedAt: now,
-            });
+            } as Task]);
 
             if (taskError) {
                 console.error(`Failed to create task for ${issue.key}:`, taskError);

@@ -29,7 +29,7 @@ export function useCategories({ userId, showToast }: UseCategoriesOptions) {
 
     const addCategory = useCallback(async (name: string, color: string) => {
         if (!userId) return null;
-        const newCat = await categoryService.createCategory({ user_id: userId, name, color });
+        const newCat = await categoryService.createCategory({ name, color });
         if (newCat) {
             setCategories(prev => [...prev, newCat]);
             showToast?.('Category created', 'success');

@@ -1,25 +1,55 @@
 /**
  * Task Service
- * Handles all task-related database operations
+ * Talks to the Django API. Call sites keep the Supabase-era `{ data, error }`
+ * envelope so the hooks did not need to change shape.
  */
 
-import { supabase } from '../supabase';
+import { request, requestAll, toServiceError as toError } from './apiClient';
+import type { ServiceError } from './apiClient';
 import { Task, TaskStatus, RecurrencePattern } from '../types';
 import { generateId } from '../utils';
 
+const taskPath = (id: string) => `/tasks/${encodeURIComponent(id)}`;
+
+// The UI models "no value" as ''. DRF's TimeField/DateField/ChoiceField reject
+// '', so empty optional values go over the wire as null.
+const OPTIONAL_NON_TEXT = [
+    'startTime',
+    'duration',
+    'recurrenceEndDate',
+    'carriedOverTo',
+    'carriedOverFrom',
+    'priority',
+] as const;
+
+const forWire = <T extends Partial<Task>>(payload: T): T => {
+    const out: Record<string, unknown> = { ...payload };
+    for (const key of OPTIONAL_NON_TEXT) {
+        if (out[key] === '') out[key] = null;
+    }
+    return out as T;
+};
+
 // ==================== Fetch Operations ====================
 
-export const fetchTasks = async (userId: string): Promise<{ data: Task[] | null; error: any }> => {
-    return supabase
-        .from('tasks')
-        .select('*')
-        .eq('user_id', userId);
+// The API scopes rows to the session, so `userId` is accepted but unused.
+export const fetchTasks = async (_userId: string): Promise<{ data: Task[] | null; error: ServiceError | null }> => {
+    try {
+        return { data: await requestAll<Task>('/tasks'), error: null };
+    } catch (error) {
+        return { data: null, error: toError(error) };
+    }
 };
 
 // ==================== Create Operations ====================
 
-export const insertTasks = async (tasks: Task[]): Promise<{ error: any }> => {
-    return supabase.from('tasks').insert(tasks);
+export const insertTasks = async (tasks: Task[]): Promise<{ error: ServiceError | null }> => {
+    try {
+        await request('/tasks/bulk', { method: 'POST', body: tasks.map(forWire) });
+        return { error: null };
+    } catch (error) {
+        return { error: toError(error) };
+    }
 };
 
 export const createTask = (
@@ -70,27 +100,75 @@ export const normalizeStatusAndCompletion = (
 export const updateTaskInDb = async (
     id: string,
     updates: Partial<Task>
-): Promise<{ error: any }> => {
-    return supabase
-        .from('tasks')
-        .update({ ...updates, updatedAt: Date.now() })
-        .eq('id', id);
+): Promise<{ error: ServiceError | null }> => {
+    try {
+        await request(taskPath(id), {
+            method: 'PATCH',
+            body: forWire({ ...updates, updatedAt: Date.now() }),
+        });
+        return { error: null };
+    } catch (error) {
+        return { error: toError(error) };
+    }
 };
 
 export const updateMultipleTasksInDb = async (
     ids: string[],
     updates: Partial<Task>
-): Promise<{ error: any }> => {
-    return supabase
-        .from('tasks')
-        .update({ ...updates, updatedAt: Date.now() })
-        .in('id', ids);
+): Promise<{ error: ServiceError | null }> => {
+    if (ids.length === 0) return { error: null };
+    try {
+        await request('/tasks/bulk', {
+            method: 'PATCH',
+            body: { ids, ...forWire(updates), updatedAt: Date.now() },
+        });
+        return { error: null };
+    } catch (error) {
+        return { error: toError(error) };
+    }
 };
 
 // ==================== Delete Operations ====================
 
-export const deleteTaskFromDb = async (id: string): Promise<{ error: any }> => {
-    return supabase.from('tasks').delete().eq('id', id);
+export const deleteTaskFromDb = async (id: string): Promise<{ error: ServiceError | null }> => {
+    try {
+        await request(taskPath(id), { method: 'DELETE' });
+        return { error: null };
+    } catch (error) {
+        return { error: toError(error) };
+    }
+};
+
+/**
+ * Delete several tasks one at a time. The parent FK cascades, so a row an
+ * earlier delete already removed answers 404; that is not a failure.
+ */
+export const deleteTasksFromDb = async (ids: string[]): Promise<{ error: ServiceError | null }> => {
+    let firstError: ServiceError | null = null;
+    for (const id of ids) {
+        const { error } = await deleteTaskFromDb(id);
+        if (error && error.status !== 404 && !firstError) firstError = error;
+    }
+    return { error: firstError };
+};
+
+// ==================== Carry-over Operations ====================
+
+/** Server-side clone of the task, its subtasks and (when needed) its parent. */
+export const carryOverTaskInDb = async (
+    id: string,
+    date: string,
+    reason?: string
+): Promise<{ error: ServiceError | null }> => {
+    try {
+        await request(`${taskPath(id)}/carry-over`, {
+            method: 'POST',
+            body: { date, reason: reason || undefined },
+        });
+        return { error: null };
+    } catch (error) {
+        return { error: toError(error) };
+    }
 };
 
 // ==================== Helper Functions ====================

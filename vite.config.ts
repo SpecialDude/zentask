@@ -2,87 +2,56 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// Everything the SPA calls goes through the Django API. In development the
+// proxy hides CORS and cookie-domain differences; in a deployed build set
+// VITE_API_BASE to the API origin instead (e.g. https://api.zentask.space).
+const API_PREFIXES = [
+  '/auth',
+  '/tasks',
+  '/categories',
+  '/lists',
+  '/feedback',
+  '/analytics',
+  '/api-keys',
+  '/jira',
+  '/ai',
+  '/push',
+  '/notification-preferences',
+  '/admins',
+  '/oauth',
+  '/.well-known',
+];
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+  const apiTarget = env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:8000';
+
+  const proxy: Record<string, object> = {};
+  for (const prefix of API_PREFIXES) {
+    proxy[prefix] = { target: apiTarget, changeOrigin: true };
+  }
+  // The service worker fetches this path without knowing the API origin.
+  proxy['/api/push/resubscribe'] = {
+    target: apiTarget,
+    changeOrigin: true,
+    rewrite: (p: string) => p.replace(/^\/api\/push\/resubscribe/, '/push/resubscribe'),
+  };
+  // The SPA advertises /api/mcp; the API serves the same handler at /mcp.
+  proxy['/api/mcp'] = {
+    target: apiTarget,
+    changeOrigin: true,
+    rewrite: (p: string) => p.replace(/^\/api\/mcp/, '/mcp'),
+  };
+  proxy['/mcp'] = { target: apiTarget, changeOrigin: true };
+  proxy['/healthz'] = { target: apiTarget, changeOrigin: true };
+
   return {
     server: {
-      port: 3000,
+      port: 5173,
       host: '0.0.0.0',
-      proxy: {
-        '/api/mcp': {
-          target: env.SUPABASE_URL || 'http://127.0.0.1:54321',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/mcp/, '/functions/v1/mcp'),
-          configure: (proxy, _options) => {
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
-              const rawHost = (req.headers['x-forwarded-host'] || req.headers['host']) as string;
-              if (rawHost) {
-                const host = rawHost.split(',')[0].trim();
-                const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
-                proxyReq.setHeader('x-mcp-origin', `${proto}://${host}`);
-              }
-            });
-          }
-        },
-        '/api/push/resubscribe': {
-          target: env.SUPABASE_URL || 'http://127.0.0.1:54321',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/push\/resubscribe/, '/functions/v1/push-resubscribe'),
-        },
-        '/.well-known/oauth-protected-resource': {
-          target: env.SUPABASE_URL || 'http://127.0.0.1:54321',
-          changeOrigin: true,
-          rewrite: (path) => '/functions/v1/mcp' + path,
-          configure: (proxy, _options) => {
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
-              const rawHost = (req.headers['x-forwarded-host'] || req.headers['host']) as string;
-              if (rawHost) {
-                const host = rawHost.split(',')[0].trim();
-                const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
-                proxyReq.setHeader('x-mcp-origin', `${proto}://${host}`);
-              }
-            });
-          }
-        },
-        '/.well-known/oauth-authorization-server': {
-          target: env.SUPABASE_URL || 'http://127.0.0.1:54321',
-          changeOrigin: true,
-          rewrite: (path) => '/functions/v1/mcp' + path,
-          configure: (proxy, _options) => {
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
-              const rawHost = (req.headers['x-forwarded-host'] || req.headers['host']) as string;
-              if (rawHost) {
-                const host = rawHost.split(',')[0].trim();
-                const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
-                proxyReq.setHeader('x-mcp-origin', `${proto}://${host}`);
-              }
-            });
-          }
-        },
-        '/oauth/': {
-          target: env.SUPABASE_URL || 'http://127.0.0.1:54321',
-          changeOrigin: true,
-          rewrite: (path) => '/functions/v1/mcp' + path,
-          configure: (proxy, _options) => {
-            proxy.on('proxyReq', (proxyReq, req, _res) => {
-              const rawHost = (req.headers['x-forwarded-host'] || req.headers['host']) as string;
-              if (rawHost) {
-                const host = rawHost.split(',')[0].trim();
-                const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
-                proxyReq.setHeader('x-mcp-origin', `${proto}://${host}`);
-              }
-            });
-          }
-        }
-      }
+      proxy,
     },
     plugins: [react()],
-    define: {
-      'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL),
-      'process.env.SUPABASE_ANON_KEY': JSON.stringify(env.SUPABASE_ANON_KEY),
-      'process.env.ATLASSIAN_CLIENT_ID': JSON.stringify(env.ATLASSIAN_CLIENT_ID),
-      'process.env.APP_URL': JSON.stringify(env.APP_URL),
-    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

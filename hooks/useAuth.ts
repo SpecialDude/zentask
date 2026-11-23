@@ -1,11 +1,19 @@
 /**
- * useAuth - Custom hook for authentication state
- * 
- * Manages Supabase auth session and user metadata.
+ * useAuth - Authentication state backed by the Django API.
+ *
+ * The session lives in HttpOnly cookies; this hook mirrors it in React via
+ * services/authClient and restores it with GET /auth/session on mount.
  */
 
-import { useState, useEffect } from 'react';
-import { supabase } from '../supabase';
+import { useState, useEffect, useRef } from 'react';
+import {
+    AuthSession,
+    getUser,
+    loadSession,
+    signOut as apiSignOut,
+    subscribe,
+    updateUser,
+} from '../services/authClient';
 import { reconcilePushSubscription } from '../services/notificationService';
 
 export interface AuthUser {
@@ -14,15 +22,13 @@ export interface AuthUser {
     displayName?: string;
 }
 
-// Persist the user's IANA timezone in auth metadata so backend schedulers
+// Persist the user's IANA timezone in account metadata so backend schedulers
 // (task reminders, quiet hours) can fire at the correct local time.
-async function ensureTimezone(user: any) {
-    if (!user) return;
+async function ensureTimezone(current?: string) {
     try {
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        if (!timezone) return;
-        if (user.user_metadata?.timezone === timezone) return;
-        await supabase.auth.updateUser({ data: { timezone } });
+        if (!timezone || current === timezone) return;
+        await updateUser({ timezone });
     } catch (error) {
         console.error('Failed to save timezone:', error);
     }
@@ -41,79 +47,69 @@ async function reconcilePushForUser(userId: string) {
 }
 
 export function useAuth() {
-    const [session, setSession] = useState<any>(null);
+    const [session, setSession] = useState<AuthSession | null>(null);
     const [userName, setUserName] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
-
     const [isAdmin, setIsAdmin] = useState(false);
-    const [isRecovery, setIsRecovery] = useState(false);
+    const reconciledUserRef = useRef<string | null>(null);
 
     useEffect(() => {
-        const checkAdminStatus = async (userId: string) => {
-            const { data } = await supabase
-                .from('admins')
-                .select('id')
-                .eq('id', userId)
-                .single();
-            setIsAdmin(!!data);
-        };
+        let disposed = false;
 
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            if (session?.user?.user_metadata?.display_name) {
-                setUserName(session.user.user_metadata.display_name);
-            }
-            if (session?.user?.id) {
-                checkAdminStatus(session.user.id);
-                ensureTimezone(session.user);
-                reconcilePushForUser(session.user.id);
-            }
+        const unsubscribe = subscribe((next) => {
+            if (disposed) return;
+            setSession(next);
+            const metadata = next?.user.user_metadata || {};
+            setUserName((metadata.display_name as string) || next?.user.email || '');
+            setIsAdmin(!!metadata.is_admin);
             setIsLoading(false);
-        });
 
-        // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'PASSWORD_RECOVERY') {
-                setIsRecovery(true);
-            } else if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
-                setIsRecovery(false);
-            }
-            setSession(session);
-            if (session?.user?.user_metadata?.display_name) {
-                setUserName(session.user.user_metadata.display_name);
-            }
-            if (session?.user?.id) {
-                checkAdminStatus(session.user.id);
-                ensureTimezone(session.user);
-                reconcilePushForUser(session.user.id);
+            if (next) {
+                ensureTimezone(metadata.timezone as string | undefined);
+                if (reconciledUserRef.current !== next.user.id) {
+                    reconciledUserRef.current = next.user.id;
+                    reconcilePushForUser(next.user.id);
+                }
             } else {
-                setIsAdmin(false);
+                reconciledUserRef.current = null;
             }
         });
 
-        return () => subscription.unsubscribe();
+        loadSession().finally(() => {
+            if (!disposed) setIsLoading(false);
+        });
+
+        return () => {
+            disposed = true;
+            unsubscribe();
+        };
     }, []);
 
     const signOut = async () => {
-        await supabase.auth.signOut();
+        await apiSignOut();
+        reconciledUserRef.current = null;
     };
 
-    const user: AuthUser | null = session?.user ? {
-        id: session.user.id,
-        email: session.user.email,
-        displayName: userName || session.user.email
-    } : null;
+    const user: AuthUser | null = session?.user
+        ? {
+              id: session.user.id,
+              email: session.user.email,
+              displayName: userName || session.user.email,
+          }
+        : null;
 
     return {
         session,
         user,
         userName,
         isAdmin,
-        isRecovery,
+        isRecovery: false,
         setUserName,
         isLoading,
         isAuthenticated: !!session,
-        signOut
+        signOut,
+        // Exposed for screens that need the full account record (admin flag,
+        // email_confirmed_at) without another round trip.
+        account: getUser(),
     };
 }

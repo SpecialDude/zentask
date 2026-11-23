@@ -1,7 +1,6 @@
-import { supabase } from '../supabase';
+import { ApiError, request, toServiceError } from './apiClient';
+import type { ServiceError } from './apiClient';
 import { JiraConnection, JiraProject, JiraIssue, JiraTaskMapping } from '../types';
-
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
 
 // Recursively extract text from Jira's Atlassian Document Format (ADF)
 const extractAdfText = (adf: any): string => {
@@ -14,106 +13,100 @@ const extractAdfText = (adf: any): string => {
     return adf.content.map((block: any) => extractNode(block)).filter(Boolean).join('\n');
 };
 
-// --- Helper: Call the Jira API proxy Edge Function ---
-const callJiraProxy = async (action: string, params: Record<string, any> = {}) => {
-    const { data, error } = await supabase.functions.invoke('jira-api-proxy', {
-        body: { action, ...params },
-    });
-
-    if (error) {
-        // Try to extract the actual error message from the response
-        let message = error.message || 'Proxy error';
-        try {
-            // FunctionsHttpError contains a context with the response body
-            if (error.context?.body) {
-                const reader = error.context.body.getReader();
-                const { value } = await reader.read();
-                const bodyText = new TextDecoder().decode(value);
-                const parsed = JSON.parse(bodyText);
-                message = parsed.error || message;
-            }
-        } catch { /* ignore parse errors */ }
+// --- Helper: Call the allowlisted Jira API proxy on the Django server ---
+const callJiraProxy = async <T = any>(action: string, params: Record<string, any> = {}): Promise<T> => {
+    try {
+        return await request<T>('/jira/proxy', {
+            method: 'POST',
+            body: { action, ...params },
+        });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Proxy error';
         console.error(`[Jira Proxy] ${action} failed:`, message);
         throw new Error(message);
     }
-
-    return data;
 };
 
 // --- OAuth ---
 
-export const getJiraAuthUrl = () => {
-    const clientId = process.env.ATLASSIAN_CLIENT_ID || '';
-    const redirectUri = encodeURIComponent(`${SUPABASE_URL}/functions/v1/jira-auth-callback`);
-    const scopes = encodeURIComponent('read:jira-work write:jira-work read:jira-user offline_access');
-
-    return `https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}&response_type=code&prompt=consent`;
+// The server signs the state so the callback can identify the user.
+export const getJiraAuthUrl = async (): Promise<string> => {
+    const { url } = await request<{ url: string }>('/jira/authorize');
+    return url;
 };
 
 // --- Connection ---
 
-export const getJiraConnection = async (): Promise<{ data: JiraConnection | null; error: any }> => {
-    const { data, error } = await supabase
-        .from('jira_connections')
-        .select('id, user_id, cloud_id, site_name, atlassian_email, token_expires_at, created_at')
-        .single();
-    return { data, error };
+export const getJiraConnection = async (): Promise<{ data: JiraConnection | null; error: ServiceError | null }> => {
+    try {
+        return { data: await request<JiraConnection>('/jira/connection'), error: null };
+    } catch (error) {
+        // 404 is the normal "not connected yet" state.
+        if (error instanceof ApiError && error.status === 404) {
+            return { data: null, error: null };
+        }
+        return { data: null, error: toServiceError(error) };
+    }
 };
 
-export const disconnectJira = async (): Promise<{ error: any }> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Not authenticated' };
-
-    // Delete in order: mappings → projects → connection (respects FK constraints)
-    await supabase.from('jira_task_mappings').delete().eq('user_id', user.id);
-    await supabase.from('jira_projects').delete().eq('user_id', user.id);
-    const { error } = await supabase.from('jira_connections').delete().eq('user_id', user.id);
-    return { error };
+export const disconnectJira = async (): Promise<{ error: ServiceError | null }> => {
+    try {
+        await request('/jira/connection', { method: 'DELETE' });
+        return { error: null };
+    } catch (error) {
+        return { error: toServiceError(error) };
+    }
 };
 
 // --- Projects ---
 
-export const getJiraProjects = async (): Promise<{ data: JiraProject[] | null; error: any }> => {
-    const { data, error } = await supabase
-        .from('jira_projects')
-        .select('*')
-        .order('created_at', { ascending: true });
-    return { data, error };
+export const getJiraProjects = async (): Promise<{ data: JiraProject[] | null; error: ServiceError | null }> => {
+    try {
+        return { data: await request<JiraProject[]>('/jira/projects'), error: null };
+    } catch (error) {
+        return { data: null, error: toServiceError(error) };
+    }
 };
 
+// Raw Atlassian `{ values: [...] }` response, as the selector expects.
 export const getAvailableJiraProjects = async () => {
     return callJiraProxy('get-projects');
 };
 
 export const addJiraProject = async (
-    connectionId: string,
+    _connectionId: string,
     projectId: string,
     projectKey: string,
     projectName: string
-): Promise<{ data: JiraProject | null; error: any }> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { data: null, error: { message: 'Not authenticated' } };
-
-    const { data, error } = await supabase.from('jira_projects').insert({
-        user_id: user.id,
-        connection_id: connectionId,
-        project_id: projectId,
-        project_key: projectKey,
-        project_name: projectName,
-    }).select().single();
-
-    return { data, error };
+): Promise<{ data: JiraProject | null; error: ServiceError | null }> => {
+    try {
+        const data = await request<JiraProject>('/jira/projects', {
+            method: 'POST',
+            body: {
+                project_id: projectId,
+                project_key: projectKey,
+                project_name: projectName,
+            },
+        });
+        return { data, error: null };
+    } catch (error) {
+        return { data: null, error: toServiceError(error) };
+    }
 };
 
-export const removeJiraProject = async (projectId: string): Promise<{ error: any }> => {
-    const { error } = await supabase.from('jira_projects').delete().eq('id', projectId);
-    return { error };
+export const removeJiraProject = async (projectId: string): Promise<{ error: ServiceError | null }> => {
+    try {
+        await request(`/jira/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE' });
+        return { error: null };
+    } catch (error) {
+        return { error: toServiceError(error) };
+    }
 };
 
 // --- Issues ---
 
 export const fetchJiraIssues = async (projectKey: string): Promise<JiraIssue[]> => {
-    const result = await callJiraProxy('get-issues', { projectKey });
+    const result = await callJiraProxy<{ issues?: any[] }>('get-issues', { projectKey });
     if (!result.issues) return [];
 
     return result.issues.map((issue: any) => ({
@@ -132,41 +125,41 @@ export const fetchJiraIssues = async (projectKey: string): Promise<JiraIssue[]> 
 
 // --- Task Mappings ---
 
-export const getTaskMappings = async (): Promise<{ data: JiraTaskMapping[] | null; error: any }> => {
-    const { data, error } = await supabase
-        .from('jira_task_mappings')
-        .select('*');
-    return { data, error };
+export const getTaskMappings = async (): Promise<{ data: JiraTaskMapping[] | null; error: ServiceError | null }> => {
+    try {
+        return { data: await request<JiraTaskMapping[]>('/jira/mappings'), error: null };
+    } catch (error) {
+        return { data: null, error: toServiceError(error) };
+    }
 };
 
-export const getTaskMappingByTaskId = async (taskId: string): Promise<{ data: JiraTaskMapping | null; error: any }> => {
-    const { data, error } = await supabase
-        .from('jira_task_mappings')
-        .select('*')
-        .eq('task_id', taskId)
-        .single();
-    return { data, error };
+export const getTaskMappingByTaskId = async (taskId: string): Promise<{ data: JiraTaskMapping | null; error: ServiceError | null }> => {
+    const { data, error } = await getTaskMappings();
+    if (error) return { data: null, error };
+    return { data: (data || []).find(m => m.task_id === taskId) || null, error: null };
 };
 
 export const createTaskMapping = async (
     taskId: string,
     jiraProjectId: string,
     issue: JiraIssue
-): Promise<{ error: any }> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: { message: 'Not authenticated' } };
-
-    const { error } = await supabase.from('jira_task_mappings').insert({
-        user_id: user.id,
-        task_id: taskId,
-        jira_project_id: jiraProjectId,
-        jira_issue_id: issue.id,
-        jira_issue_key: issue.key,
-        jira_parent_id: issue.parentId || null,
-        jira_status: issue.statusCategory,
-    });
-
-    return { error };
+): Promise<{ error: ServiceError | null }> => {
+    try {
+        await request('/jira/mappings', {
+            method: 'POST',
+            body: {
+                task_id: taskId,
+                jira_project_id: jiraProjectId,
+                jira_issue_id: issue.id,
+                jira_issue_key: issue.key,
+                jira_parent_id: issue.parentId || null,
+                jira_status: issue.statusCategory,
+            },
+        });
+        return { error: null };
+    } catch (error) {
+        return { error: toServiceError(error) };
+    }
 };
 
 // --- Status Sync ---
@@ -174,7 +167,7 @@ export const createTaskMapping = async (
 export const transitionJiraIssue = async (issueKey: string, targetStatusCategory: string): Promise<{ error?: string }> => {
     try {
         // 1. Get available transitions
-        const { transitions } = await callJiraProxy('get-transitions', { issueKey });
+        const { transitions } = await callJiraProxy<{ transitions?: any[] }>('get-transitions', { issueKey });
 
         // 2. Find the right transition based on target status category
         const transition = transitions?.find((t: any) => {
@@ -194,49 +187,16 @@ export const transitionJiraIssue = async (issueKey: string, targetStatusCategory
     }
 };
 
+// The server walks the user's mappings and applies the status changes itself.
 export const syncExistingTasks = async (): Promise<{
     updates: { taskId: string; newStatus: string }[];
     error?: string;
 }> => {
     try {
-        const { data: mappings } = await getTaskMappings();
-        if (!mappings?.length) return { updates: [] };
-
-        const updates: { taskId: string; newStatus: string }[] = [];
-
-        // Group mappings by project to batch API calls
-        const byProject = new Map<string, JiraTaskMapping[]>();
-        for (const m of mappings) {
-            const arr = byProject.get(m.jira_project_id) || [];
-            arr.push(m);
-            byProject.set(m.jira_project_id, arr);
-        }
-
-        for (const [, projectMappings] of byProject) {
-            for (const mapping of projectMappings) {
-                try {
-                    const issue = await callJiraProxy('get-issue', { issueKey: mapping.jira_issue_key });
-                    const currentCategory = issue?.fields?.status?.statusCategory?.key;
-
-                    if (currentCategory && currentCategory !== mapping.jira_status) {
-                        let newStatus = 'TODO';
-                        if (currentCategory === 'indeterminate') newStatus = 'IN_PROGRESS';
-                        else if (currentCategory === 'done') newStatus = 'COMPLETED';
-
-                        updates.push({ taskId: mapping.task_id, newStatus });
-
-                        // Update mapping's cached status
-                        await supabase.from('jira_task_mappings')
-                            .update({ jira_status: currentCategory, last_synced_at: new Date().toISOString() })
-                            .eq('id', mapping.id);
-                    }
-                } catch (err) {
-                    console.error(`Failed to sync issue ${mapping.jira_issue_key}:`, err);
-                }
-            }
-        }
-
-        return { updates };
+        const body = await request<{ updates: { taskId: string; newStatus: string }[] }>('/jira/sync', {
+            method: 'POST',
+        });
+        return { updates: body.updates || [] };
     } catch (err: any) {
         return { updates: [], error: err.message };
     }

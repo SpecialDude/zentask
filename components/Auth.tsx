@@ -1,21 +1,37 @@
 
-import React, { useState } from 'react';
-import { supabase } from '../supabase';
+import React, { useEffect, useState } from 'react';
+import {
+  fetchAuthProviders,
+  login,
+  requestPasswordReset,
+  signInWithGoogle,
+  signup,
+} from '../services/authClient';
 
 type AuthMode = 'login' | 'signup' | 'forgot-password';
 
 interface AuthProps {
   onSuccess?: () => void;
+  initialError?: string | null;
 }
 
-const Auth: React.FC<AuthProps> = ({ onSuccess }) => {
+const Auth: React.FC<AuthProps> = ({ onSuccess, initialError }) => {
   const [loading, setLoading] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAuthProviders().then((providers) => {
+      if (!cancelled) setGoogleEnabled(providers.google);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,24 +41,15 @@ const Auth: React.FC<AuthProps> = ({ onSuccess }) => {
 
     try {
       if (authMode === 'signup') {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: `${window.location.origin}/` },
-        });
-        if (error) throw error;
-        setSuccessMessage('Check your email for the confirmation link!');
+        const detail = await signup(email, password);
+        setSuccessMessage(detail);
         setAuthMode('login');
       } else if (authMode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        await login(email, password);
         onSuccess?.();
       } else if (authMode === 'forgot-password') {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
-        if (error) throw error;
-        setSuccessMessage('Password reset email sent! Check your inbox.');
+        const detail = await requestPasswordReset(email);
+        setSuccessMessage(detail);
         setAuthMode('login');
       }
     } catch (err: any) {
@@ -86,6 +93,30 @@ const Auth: React.FC<AuthProps> = ({ onSuccess }) => {
           </button>
           <p className="text-slate-500 dark:text-slate-400">{getTitle()}</p>
         </div>
+
+        {googleEnabled && authMode !== 'forgot-password' && (
+          <div className="space-y-4">
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-200 font-semibold py-3.5 rounded-2xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.57 5.57 0 0 1-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" />
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A11.99 11.99 0 0 0 12 24z" />
+                <path fill="#FBBC05" d="M5.27 14.29a7.2 7.2 0 0 1 0-4.58V6.62H1.29a11.99 11.99 0 0 0 0 10.76l3.98-3.09z" />
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.69 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z" />
+              </svg>
+              Continue with Google
+            </button>
+            <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-widest text-slate-300 dark:text-slate-600">
+              <span className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+              or
+              <span className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+            </div>
+          </div>
+        )}
 
         {/* Success Message */}
         {successMessage && (

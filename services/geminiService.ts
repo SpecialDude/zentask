@@ -1,10 +1,10 @@
 /**
  * Gemini Service
- * Calls the gemini-proxy Supabase Edge Function so the Gemini API key
- * stays server-side and every request is authenticated with the user's JWT.
+ * Calls the server-side Gemini proxy so the API key stays on the backend and
+ * every request rides the authenticated session.
  */
 
-import { supabase } from '../supabase';
+import { request } from './apiClient';
 
 export interface GeminiProxyRequest {
     model?: string;
@@ -15,26 +15,15 @@ export interface GeminiProxyRequest {
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3-flash-preview';
 
-export const callGeminiProxy = async (request: GeminiProxyRequest): Promise<any> => {
-    const { data, error } = await supabase.functions.invoke('gemini-proxy', {
-        body: { model: DEFAULT_GEMINI_MODEL, ...request },
-    });
-
-    if (error) {
-        let message = error.message || 'AI request failed';
-        try {
-            // FunctionsHttpError contains a context with the response body
-            if ((error as any).context?.body) {
-                const reader = (error as any).context.body.getReader();
-                const { value } = await reader.read();
-                const parsed = JSON.parse(new TextDecoder().decode(value));
-                message = parsed.error || message;
-            }
-        } catch { /* ignore parse errors */ }
-        throw new Error(message);
+export const callGeminiProxy = async (requestBody: GeminiProxyRequest): Promise<any> => {
+    try {
+        return await request('/ai/generate', {
+            method: 'POST',
+            body: { model: DEFAULT_GEMINI_MODEL, ...requestBody },
+        });
+    } catch (error) {
+        throw new Error(error instanceof Error ? error.message : 'AI request failed');
     }
-
-    return data;
 };
 
 export const extractGeminiText = (response: any): string => {

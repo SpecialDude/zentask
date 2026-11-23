@@ -20,6 +20,9 @@ dist-ssr
 # Database dumps contain user data and password hashes
 supabase/backups/
 
+# Supabase CLI local cache (holds the linked project ref and pooler URL)
+supabase/.temp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
