@@ -49,9 +49,18 @@ export function toServiceError(error: unknown): ServiceError {
   return { message: 'Request failed' };
 }
 
-function messageFromBody(body: unknown): string {
-  if (!body) return 'Request failed';
-  if (typeof body === 'string') return body;
+const SERVER_ERROR_MESSAGE = 'The server hit an error. Please try again in a moment.';
+
+function messageFromBody(body: unknown, status?: number): string {
+  if (!body) return status && status >= 500 ? SERVER_ERROR_MESSAGE : 'Request failed';
+  if (typeof body === 'string') {
+    const text = body.trim();
+    // Error pages (Django's 500 HTML, proxy pages) are not user-facing copy.
+    if (!text || text.startsWith('<') || text.length > 300) {
+      return status && status >= 500 ? SERVER_ERROR_MESSAGE : 'Request failed';
+    }
+    return text;
+  }
   if (typeof body !== 'object') return 'Request failed';
   const record = body as Record<string, unknown>;
   if (typeof record.detail === 'string') return record.detail;
@@ -169,7 +178,7 @@ export async function request<T = unknown>(path: string, options: RequestOptions
   const body = await readBody(response);
   if (!response.ok) {
     if (response.status === 401) unauthenticatedHandler?.();
-    throw new ApiError(messageFromBody(body), response.status, body);
+    throw new ApiError(messageFromBody(body, response.status), response.status, body);
   }
   return body as T;
 }
